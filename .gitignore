@@ -1,0 +1,18 @@
+# Билд-папка
+/build/
+/CMakeFiles/
+/CMakeCache.txt
+
+# Артефакты IDE
+*.user
+*.suo
+*.vcxproj*
+*.ncb
+*.opensdf
+*.sdf
+
+# Логи, бинарники
+*.exe
+*.dll
+*.so
+*.dylib
