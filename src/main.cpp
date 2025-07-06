@@ -5,7 +5,7 @@
 int main() {
     InitAudioDevice();
     InitWindow(800, 100, "HSRG");
-    SetTargetFPS(165*4);
+    SetTargetFPS(60);
 
     MapPlayer player;
     while (!WindowShouldClose()) {
