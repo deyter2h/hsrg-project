@@ -6,14 +6,27 @@
 #include <optional>
 #include <deque>
 
+//Single bpm impl
+
 enum Signature {
 	ONE_FOUR,
 	ONE_THREE,
 };
 
+struct NoteEntry {
+	Note      note;
+	Signature signature;
+};
+
+struct Grouped {
+	size_t    startIdx;  
+	size_t    endIdx;   
+	Signature signature; 
+};
+
 class Beatmap {
 public:
-	Beatmap();
+	Beatmap() = default;
 
 	~Beatmap();
 
@@ -21,14 +34,18 @@ public:
 						  
 	std::vector<int> getTimingsFor(Signature signature);
 
-	std::deque<Note> getNotes();
-
 	void placeNote(Signature signature, int timingStartId, int timingEndId);
 
-private:
-	int bpm;
-	int      songLengthMs = 0;
-	std::vector<Note> notes;
+	const std::deque<NoteEntry>& getEntries() const { return entries; }
+	const std::deque<Grouped>& getGroups() const { return groups; }
 
-	Music music;
+private:
+	std::vector<int> getTimingsFor(Signature sig) const;
+
+	int                           bpm = 120;
+	int                           songLengthMs = 100000;
+	Music                         music;
+
+	std::deque<NoteEntry>         entries;   
+	std::deque<Grouped>           groups; 
 };

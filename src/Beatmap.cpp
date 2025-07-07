@@ -1,8 +1,6 @@
-#include "Beatmap.h"
+﻿#include "Beatmap.h"
 #include <cmath>
 #include <iostream>
-
-Beatmap::Beatmap() = default;
 
 void Beatmap::load(int bpm, const std::string& filename) {
     this->bpm = bpm;
@@ -27,9 +25,8 @@ std::vector<int> Beatmap::getTimingsFor(Signature signature) {
 
     int div = 4;
     switch (signature) {
-    case Signature::ONE_FOUR:  div = 4; break;  // ����������
-    case Signature::ONE_THREE: div = 3; break;  // ������
-    // �������� ����� ������
+    case Signature::ONE_FOUR:  div = 4; break;
+    case Signature::ONE_THREE: div = 3; break;
     }
 
     double stepMs = (60000.0 / bpm) / double(div);
@@ -43,28 +40,62 @@ std::vector<int> Beatmap::getTimingsFor(Signature signature) {
     return result;
 }
 
-std::deque<Note> Beatmap::getNotes() {
-    std::deque<Note> deq;
+void Beatmap::placeNote(Signature signature,
+    int timingStartId,
+    int timingEndId)
+{
 
-    for (auto i : notes) {
-        deq.push_back(i);
-    }
-
-    return deq;
-}
-
-void Beatmap::placeNote(Signature signature, int timingStartId, int timingEndId) {
-    std::vector<int> timings = getTimingsFor(signature);
-
-    if (timingStartId < 0 || timingStartId >= int(timings.size()))
-        return;
-    if (timingEndId < 0 || timingEndId >= int(timings.size()))
+    // 1) Проверка индексов…
+    auto timings = getTimingsFor(signature);
+    if (timingStartId < 0 || timingStartId >= int(timings.size()) ||
+        timingEndId   < 0 || timingEndId >= int(timings.size()) ||
+        timingStartId > timingEndId)
         return;
 
-    if (timingStartId > timingEndId)
-        return;
+    if (timings.empty()) return;
 
     int startMs = timings[timingStartId];
     int length = timings[timingEndId] - startMs;
-    notes.push_back({ startMs, length });
+
+    // 2) Добавляем запись
+    entries.push_back({ {startMs, length}, signature });
+    size_t idx = entries.size() - 1;
+
+    // 3) Инкрементальная группировка по разнице timingStartId
+    static int  lastTimingId = -1;
+    static int  lastDelta = 0;
+    static bool first = true;
+    static bool second = false;
+
+    int delta = timingStartId - lastTimingId;
+
+    if (first) {
+        groups.clear();
+        groups.push_back({ idx, idx, signature });
+        first = false;
+        second = true;
+    }
+    else if (second) {
+        // вторая нота расширяет первую группу из [0..0] в [0..1]
+        lastDelta = delta;
+        groups.back().startIdx = idx - 1;
+        groups.back().endIdx = idx;
+        groups.back().signature = signature;
+        second = false;
+    }
+    else {
+        if (delta == lastDelta) {
+            // тот же шаг — просто расширяем актуальную группу вправо
+            groups.back().endIdx = idx;
+        }
+        else {
+            // шаг изменился — создаём новую группу из двух последних нот
+            lastDelta = delta;
+            groups.push_back({ idx - 1, idx, signature });
+        }
+    }
+
+    // 4) Обязательно в конце обновляем lastTimingId
+    lastTimingId = timingStartId;
 }
+

@@ -1,6 +1,6 @@
 ﻿#include "raylib.h"
 #include <algorithm>
-#include "src/MapPlayer.h"
+#include "MapPlayer.h"
 
 int main() {
     InitAudioDevice();

@@ -19,13 +19,18 @@ MapPlayer::~MapPlayer() {}
 
 bool MapPlayer::loadFromPath(const std::string& path) {
     this->beatmap.load(360, "data/audio.mp3");
-
-    for (int i = 0; i < 1000 / 4 ; i++) {
-        this->beatmap.placeNote(ONE_FOUR, i * 4, i * 4);
+    for (int i = 0; i < 10; i++) {
+        beatmap.placeNote(Signature::ONE_FOUR, i * 10, i * 10);
     }
 
-    this->loadedNotes = this->beatmap.getNotes();
+    auto& entries = this->beatmap.getEntries();
 
+    
+    
+    for (auto& i : entries) loadedNotes.push_back(i.note);
+
+    
+    
     return true;
 }
 
@@ -156,6 +161,8 @@ void MapPlayer::drawNotes() {
         }
     }
 
+    if (renderedNotes.empty()) return;
+
     const Note& currentNote = renderedNotes.front();
 
     if (currentNote.hit_offset_ms.has_value()) {
@@ -204,8 +211,6 @@ void MapPlayer::updateAndDraw() {
     hitFlash.drawOffset(0, hitX / 2, 20);
 
     DrawLine(hitX, 0, hitX, GetScreenHeight(), BLUE);
-
-    const float scrollW = float(GetScreenWidth() - hitX);
 
     drawNotes();
 

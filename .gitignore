@@ -1,6 +1,7 @@
 # Билд-папка
 /build/
 /.vs/
+/out/
 /CMakeFiles/
 /CMakeCache.txt
 
