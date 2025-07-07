@@ -1,0 +1,361 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Web Beatmap Editor</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 10px;
+        }
+
+        #controls {
+            margin-bottom: 8px;
+        }
+
+        canvas {
+            border: 1px solid #ccc;
+            display: block;
+            margin-top: 8px;
+            cursor: crosshair;
+        }
+
+        label {
+            margin-right: 12px;
+        }
+
+        button {
+            margin-left: 6px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <label>
+            Audio:
+            <input type="file" id="fileInput" accept="audio/*">
+        </label>
+        <label>
+            BPM:
+            <input type="number" id="bpmInput" value="120" min="20" max="300" style="width:60px">
+        </label>
+        <label>
+            Sig:
+            <select id="sigSelect">
+                <option value="4">1/4</option>
+                <option value="3">1/3</option>
+            </select>
+        </label>
+        <label>
+            Offset (ms):
+            <input type="number" id="offsetInput" value="0" style="width:80px">
+        </label>
+        <label>
+            Speed:
+            <select id="speedSelect">
+                <option value="0.5">0.5×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.5">1.5×</option>
+                <option value="2">2×</option>
+            </select>
+        </label>
+        <button id="restartBtn" disabled>Restart</button>
+        <button id="pauseBtn" disabled>Pause</button>
+    </div>
+
+    <canvas id="canvas" width="1000" height="200"></canvas>
+
+    <script>
+        (function () {
+            // controls
+            const fileInput = document.getElementById('fileInput');
+            const bpmInput = document.getElementById('bpmInput');
+            const sigSelect = document.getElementById('sigSelect');
+            const offsetInput = document.getElementById('offsetInput');
+            const speedSelect = document.getElementById('speedSelect');
+            const restartBtn = document.getElementById('restartBtn');
+            const pauseBtn = document.getElementById('pauseBtn');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // audio vars
+            let audioCtx, audioBuffer, sourceNode;
+            let startTime = 0, pauseOffset = 0, playing = false;
+
+            // timing vars
+            let songDurationMs = 0;
+            let bpm = +bpmInput.value;
+            let signature = +sigSelect.value;
+            let offsetMs = +offsetInput.value;
+            let playbackRate = +speedSelect.value;
+            let stepMs = 60000 / bpm / signature;
+
+            // note structure: {start, length, playedStart, playedEnd}
+            const userNotes = [];
+
+            // view
+            let viewOffsetMs = 0;
+            const viewWidthMs = 8000;
+            let isDragging = false, dragStartMs = 0;
+            let lastPlayheadMs = 0;
+
+            // load audio
+            fileInput.addEventListener('change', async () => {
+                const file = fileInput.files[0];
+                if (!file) return;
+                const data = await file.arrayBuffer();
+                if (!audioCtx) audioCtx = new AudioContext();
+                audioBuffer = await audioCtx.decodeAudioData(data);
+                songDurationMs = audioBuffer.duration * 1000;
+                restartBtn.disabled = pauseBtn.disabled = false;
+                draw();
+            });
+
+            // update controls
+            bpmInput.addEventListener('change', () => {
+                bpm = +bpmInput.value || 120;
+                stepMs = 60000 / bpm / signature;
+                draw();
+            });
+            sigSelect.addEventListener('change', () => {
+                signature = +sigSelect.value;
+                stepMs = 60000 / bpm / signature;
+                draw();
+            });
+            offsetInput.addEventListener('change', () => {
+                offsetMs = +offsetInput.value || 0;
+                draw();
+            });
+            speedSelect.addEventListener('change', () => {
+                playbackRate = +speedSelect.value;
+            });
+
+            // restart
+            restartBtn.addEventListener('click', () => {
+                // Если играем — остановим текущее
+                if (playing) {
+                    sourceNode.stop();
+                    playing = false;
+                }
+
+                // Сбросим все показатели
+                pauseOffset = offsetMs;     // начинаем ровно с заданного оффсета
+                lastPlayheadMs = 0;
+                userNotes.forEach(n => {
+                    n.playedStart = false;
+                    n.playedEnd = false;
+                });
+
+                // Перезапустим звук
+                sourceNode = audioCtx.createBufferSource();
+                sourceNode.buffer = audioBuffer;
+                sourceNode.playbackRate.value = playbackRate;
+                sourceNode.connect(audioCtx.destination);
+
+                startTime = audioCtx.currentTime;
+                sourceNode.start(0, pauseOffset / 1000);
+
+                playing = true;
+                pauseBtn.textContent = 'Pause';
+
+                // Запустим анимацию
+                requestAnimationFrame(loop);
+            });
+
+            // pause/resume
+            pauseBtn.addEventListener('click', () => {
+                if (!audioBuffer) return;
+                if (!playing) {
+                    // Resume: не трогаем pauseOffset здесь
+                    sourceNode = audioCtx.createBufferSource();
+                    sourceNode.buffer = audioBuffer;
+                    sourceNode.playbackRate.value = playbackRate;
+                    sourceNode.connect(audioCtx.destination);
+
+                    startTime = audioCtx.currentTime;
+                    sourceNode.start(0, (pauseOffset + offsetMs) / 1000);
+
+                    playing = true;
+                    pauseBtn.textContent = 'Pause';
+                    requestAnimationFrame(loop);
+                } else {
+                    sourceNode.stop();
+                    // При остановке накапливаем уже «проигранное» с учётом замедления
+                    const deltaReal = (audioCtx.currentTime - startTime) * 1000;
+                    pauseOffset += deltaReal * playbackRate;
+                    playing = false;
+                    pauseBtn.textContent = 'Resume';
+                }
+            });
+
+            // wheel scroll
+            canvas.addEventListener('wheel', e => {
+                e.preventDefault();
+                viewOffsetMs += e.deltaY * (viewWidthMs / 1000);
+                viewOffsetMs = Math.max(0, Math.min(viewOffsetMs, songDurationMs - viewWidthMs));
+                draw();
+            });
+
+            // drag for long note
+            canvas.addEventListener('mousedown', e => {
+                if (e.button !== 0) return;
+                isDragging = true;
+                const mx = e.offsetX, px = canvas.width / viewWidthMs;
+                dragStartMs = viewOffsetMs + mx / px;
+            });
+            canvas.addEventListener('mouseup', e => {
+                if (!isDragging) return;
+                isDragging = false;
+                const mx = e.offsetX, px = canvas.width / viewWidthMs;
+                let endMs = viewOffsetMs + mx / px;
+                let start = Math.min(dragStartMs, endMs);
+                let length = Math.abs(endMs - dragStartMs);
+                // snap to grid
+                const i0 = Math.round(start / stepMs);
+                const i1 = Math.round((start + length) / stepMs);
+                start = i0 * stepMs;
+                length = Math.max(0, (i1 - i0)) * stepMs;
+                if (!userNotes.find(n => n.start === start)) {
+                    userNotes.push({ start, length, playedStart: false, playedEnd: false });
+                }
+                draw();
+            });
+
+            // right click remove
+            canvas.addEventListener('contextmenu', e => {
+                e.preventDefault();
+                const mx = e.offsetX, px = canvas.width / viewWidthMs;
+                const cm = viewOffsetMs + mx / px;
+                for (let i = 0; i < userNotes.length; i++) {
+                    if (Math.abs(userNotes[i].start - cm) < stepMs * 0.5) {
+                        userNotes.splice(i, 1);
+                        break;
+                    }
+                }
+                draw();
+            });
+
+            // simple click sound
+            function playClick() {
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.value = 600;
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.05);
+            }
+
+            function loop() {
+                if (!playing) return;
+                draw();
+                requestAnimationFrame(loop);
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const pxPerMs = canvas.width / viewWidthMs, h = canvas.height;
+
+                // рисуем «главные» сеточные линии с двойным шагом и нумерацией
+
+                const majorStep = stepMs * 2;    // теперь линии через 2 малых деления
+                const startBeat = Math.floor(viewOffsetMs / majorStep);
+                const endBeat = Math.ceil((viewOffsetMs + viewWidthMs) / majorStep);
+
+                ctx.strokeStyle = '#ccc';
+                ctx.fillStyle = '#333';
+                ctx.lineWidth = 1;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+
+                for (let bi = startBeat; bi <= endBeat; bi++) {
+                    const t = bi * majorStep;
+                    const x = Math.round((t - viewOffsetMs) * pxPerMs);
+
+                    // вертикальная линия
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, h);
+                    ctx.stroke();
+
+                    // номер внутри такта: 1..signature
+                    const idx = ((bi % signature) + signature) % signature + 1;
+
+                    // для «1» шрифт жирный и крупнее
+                    if (idx === 1) {
+                        ctx.font = 'bold 16px sans-serif';
+                    } else {
+                        ctx.font = '12px sans-serif';
+                    }
+
+                    // рисуем цифру под линией
+                    ctx.fillText(idx, x, h - 20);
+                }
+
+                // notes
+                userNotes.forEach(n => {
+                    if (n.start > viewOffsetMs + viewWidthMs ||
+                        n.start + n.length < viewOffsetMs) return;
+                    const x = Math.round((n.start - viewOffsetMs) * pxPerMs);
+                    if (n.length === 0) {
+                        ctx.fillStyle = 'red';
+                        ctx.beginPath(); ctx.arc(x, h / 2, 6, 0, 2 * Math.PI); ctx.fill();
+                    } else {
+                        const w = Math.round(n.length * pxPerMs);
+                        ctx.fillStyle = 'orange';
+                        ctx.fillRect(x, h / 4, w, h / 2);
+                    }
+                });
+
+                // compute playhead time
+                let playedMs = pauseOffset - offsetMs;
+                if (playing) {
+                    const deltaReal = (audioCtx.currentTime - startTime) * 1000;
+                    playedMs = pauseOffset + deltaReal * playbackRate - offsetMs;
+   
+                    // click on start/end
+                    userNotes.forEach(n => {
+                        if (!n.playedStart && n.start >= lastPlayheadMs && n.start <= playedMs) {
+                            playClick(); n.playedStart = true;
+                        }
+                        if (n.length > 0) {
+                            const end = n.start + n.length;
+                            if (!n.playedEnd && end >= lastPlayheadMs && end <= playedMs) {
+                                playClick(); n.playedEnd = true;
+                            }
+                        }
+                    });
+                    lastPlayheadMs = playedMs;
+                    // center view
+                    viewOffsetMs = playedMs - viewWidthMs / 2;
+                    viewOffsetMs = Math.max(0, Math.min(viewOffsetMs, songDurationMs - viewWidthMs));
+                }
+
+                // draw playhead always
+                {
+                    const x = Math.round((playedMs - viewOffsetMs) * pxPerMs);
+                    ctx.strokeStyle = 'blue'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+                }
+
+                // HUD
+                ctx.fillStyle = '#333';
+                const tm = Math.round(playedMs);
+                ctx.fillText(`Time: ${tm} ms`, 10, 20);
+                ctx.fillText(`BPM: ${bpm}`, 10, 40);
+                ctx.fillText(`Sig: 1/${signature}`, 10, 60);
+                ctx.fillText(`Offset: ${offsetMs} ms`, 10, 80);
+                ctx.fillText(`Speed: ${playbackRate}×`, 10, 100);
+                ctx.fillText(`Notes: ${userNotes.length}`, 10, 120);
+            }
+        })();
+    </script>
+
+</body>
+</html>

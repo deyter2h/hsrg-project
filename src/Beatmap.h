@@ -40,7 +40,6 @@ public:
 	const std::deque<Grouped>& getGroups() const { return groups; }
 
 private:
-	std::vector<int> getTimingsFor(Signature sig) const;
 
 	int                           bpm = 120;
 	int                           songLengthMs = 100000;
