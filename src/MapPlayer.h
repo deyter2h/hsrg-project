@@ -26,11 +26,13 @@ private:
 
     // обновление логики
     void tick();
+    void updateControls();
+    void updateInputFeedback();
     void drawNotes();
 
     // внутренняя структура
-    std::deque<Note> loadedNotes;
-    std::deque<Note> renderedNotes;
+    std::deque<NoteEntry> loadedNotes;
+    std::deque<NoteEntry> renderedNotes;
     size_t nextNoteIndex = 0;
 
 
@@ -38,14 +40,7 @@ private:
     std::chrono::steady_clock::time_point startTime;
     int               lastNoteId = -1;
 
-    // для скорости прокрутки
-    float speedMultiplier = 0.5f;
-    const float step = 0.1f;
-    const float minSpeed = 0.1f;
-    const float maxSpeed = 5.0f;
-
-    // вспомогательные
-    static constexpr int hitX = 125;
+    float approachRate = 0.5f;
 
     Flash hitFlash;
 

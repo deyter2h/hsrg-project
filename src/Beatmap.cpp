@@ -44,11 +44,9 @@ void Beatmap::placeNote(Signature signature,
     int timingStartId,
     int timingEndId)
 {
-
-    // 1) Проверка индексов…
     auto timings = getTimingsFor(signature);
-    if (timingStartId < 0 || timingStartId >= int(timings.size()) ||
-        timingEndId   < 0 || timingEndId >= int(timings.size()) ||
+    if (timingStartId < 0 || timingStartId >= (int)timings.size() ||
+        timingEndId   < 0 || timingEndId >= (int)timings.size() ||
         timingStartId > timingEndId)
         return;
 
@@ -57,45 +55,10 @@ void Beatmap::placeNote(Signature signature,
     int startMs = timings[timingStartId];
     int length = timings[timingEndId] - startMs;
 
-    // 2) Добавляем запись
-    entries.push_back({ {startMs, length}, signature });
+    // 2) Добавляем запись с временным group = -1
+    entries.push_back({ {startMs, length}, signature, -1 });
     size_t idx = entries.size() - 1;
 
-    // 3) Инкрементальная группировка по разнице timingStartId
-    static int  lastTimingId = -1;
-    static int  lastDelta = 0;
-    static bool first = true;
-    static bool second = false;
-
-    int delta = timingStartId - lastTimingId;
-
-    if (first) {
-        groups.clear();
-        groups.push_back({ idx, idx, signature });
-        first = false;
-        second = true;
-    }
-    else if (second) {
-        // вторая нота расширяет первую группу из [0..0] в [0..1]
-        lastDelta = delta;
-        groups.back().startIdx = idx - 1;
-        groups.back().endIdx = idx;
-        groups.back().signature = signature;
-        second = false;
-    }
-    else {
-        if (delta == lastDelta) {
-            // тот же шаг — просто расширяем актуальную группу вправо
-            groups.back().endIdx = idx;
-        }
-        else {
-            // шаг изменился — создаём новую группу из двух последних нот
-            lastDelta = delta;
-            groups.push_back({ idx - 1, idx, signature });
-        }
-    }
-
-    // 4) Обязательно в конце обновляем lastTimingId
-    lastTimingId = timingStartId;
+    
 }
 

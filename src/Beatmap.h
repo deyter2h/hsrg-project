@@ -16,6 +16,7 @@ enum Signature {
 struct NoteEntry {
 	Note      note;
 	Signature signature;
+	int group;
 };
 
 struct Grouped {
@@ -37,7 +38,6 @@ public:
 	void placeNote(Signature signature, int timingStartId, int timingEndId);
 
 	const std::deque<NoteEntry>& getEntries() const { return entries; }
-	const std::deque<Grouped>& getGroups() const { return groups; }
 
 private:
 
@@ -46,5 +46,4 @@ private:
 	Music                         music;
 
 	std::deque<NoteEntry>         entries;   
-	std::deque<Grouped>           groups; 
 };

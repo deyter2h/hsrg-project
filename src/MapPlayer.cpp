@@ -1,14 +1,10 @@
-﻿// MapPlayer.cpp
-#include "MapPlayer.h"
+﻿#include "MapPlayer.h"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include "Settings.h"
 
 //CURRENTLY IT IS ALLOWED TO RELEASE A LONG NOTE (SUCCESS), IF IT WAS HIT INCORRECTLY
-
-int previewWindowMs = 2000;
-constexpr int NOTE_HIT_WINDOW_GOOD_MS = 50;
-constexpr int NOTE_HIT_WINDOW_MS = 150;
 
 MapPlayer::MapPlayer() {
     loadFromPath("");
@@ -19,73 +15,46 @@ MapPlayer::~MapPlayer() {}
 
 bool MapPlayer::loadFromPath(const std::string& path) {
     this->beatmap.load(360, "data/audio.mp3");
-    for (int i = 0; i < 10; i++) {
-        beatmap.placeNote(Signature::ONE_FOUR, i * 10, i * 10);
-    }
+    beatmap.placeNote(Signature::ONE_FOUR, 30, 30);
+    beatmap.placeNote(Signature::ONE_FOUR, 35, 50);
 
-    auto& entries = this->beatmap.getEntries();
+    loadedNotes = this->beatmap.getEntries();
 
-    
-    
-    for (auto& i : entries) loadedNotes.push_back(i.note);
-
-    
-    
     return true;
 }
 
 void MapPlayer::press() {
     if (renderedNotes.empty()) return;
-
-    Note& currentNote = renderedNotes.front();
-
-    if (currentNote.hit_offset_ms.has_value()) return; //Эта нота уже нажата
-
-    if (currentNote.timing_ms - timePassedMs >= NOTE_HIT_WINDOW_MS) { return; } //Нажали когда нота далеко - нет штрафа
-
-    if (timePassedMs - NOTE_HIT_WINDOW_MS >= currentNote.timing_ms) {   //Нажали сильно позже начала/во время длинной ноты - штраф
-        hitFlash.trigger(RED, timePassedMs - currentNote.timing_ms);
-        currentNote.hit_offset_ms = timePassedMs - currentNote.timing_ms; 
+    NoteEntry& currentNote = renderedNotes.front();
+    if (currentNote.note.hit_offset_ms.has_value()) return; //Эта нота уже нажата
+    if (currentNote.note.timing_ms - timePassedMs >= Settings::NOTE_HIT_WINDOW_MS) { return; } //Нажали когда нота далеко - нет штрафа
+    if (timePassedMs - Settings::NOTE_HIT_WINDOW_MS >= currentNote.note.timing_ms) {   //Нажали сильно позже начала/во время длинной ноты - штраф
+        hitFlash.trigger(RED, timePassedMs - currentNote.note.timing_ms);
+        currentNote.note.hit_offset_ms = timePassedMs - currentNote.note.timing_ms; 
         return;
     }
-
-    if (std::abs(timePassedMs - currentNote.timing_ms) >= NOTE_HIT_WINDOW_GOOD_MS) { //Нажали не в тайминг - штраф
-        hitFlash.trigger(RED, timePassedMs - currentNote.timing_ms);
-        currentNote.hit_offset_ms = timePassedMs - currentNote.timing_ms;
+    if (std::abs(timePassedMs - currentNote.note.timing_ms) >= Settings::NOTE_HIT_WINDOW_GOOD_MS) { //Нажали не в тайминг - штраф
+        hitFlash.trigger(RED, timePassedMs - currentNote.note.timing_ms);
+        currentNote.note.hit_offset_ms = timePassedMs - currentNote.note.timing_ms;
         return;
     };
 
-    currentNote.hit_offset_ms = timePassedMs - currentNote.timing_ms;
-
-    //hitFlash.trigger(GREEN, timePassedMs - currentNote.timing_ms);
-
-    if (!currentNote.length_ms) { //Попали в обычную ноту - удалим TMP
-       // renderedNotes.pop_front();
-    }
+    currentNote.note.hit_offset_ms = timePassedMs - currentNote.note.timing_ms;
 }
 
 void MapPlayer::release() {
     if (renderedNotes.empty()) return;
-
-    Note& currentNote = renderedNotes.front();
-
-    if (currentNote.release_offset_ms.has_value()) return; //Эта нота уже зажата
-
-    if (!currentNote.hit_offset_ms.has_value()) return; //Эта нота не зажималась
-
-    if (!currentNote.length_ms) return; //Обычная нота - не нужно отпускать в тайминг
-
-    if (std::abs(timePassedMs - currentNote.timing_ms - currentNote.length_ms) >= NOTE_HIT_WINDOW_GOOD_MS) { //Отпустили не в тайминг
-        hitFlash.trigger(RED, timePassedMs - currentNote.timing_ms);
-        currentNote.release_offset_ms = timePassedMs - (currentNote.timing_ms + currentNote.length_ms); 
+    NoteEntry& currentNote = renderedNotes.front();
+    if (currentNote.note.release_offset_ms.has_value()) return; //Эта нота уже зажата
+    if (!currentNote.note.hit_offset_ms.has_value()) return; //Эта нота не зажималась
+    if (!currentNote.note.length_ms) return; //Обычная нота - не нужно отпускать в тайминг
+    if (std::abs(timePassedMs - currentNote.note.timing_ms - currentNote.note.length_ms) >= Settings::NOTE_HIT_WINDOW_GOOD_MS) { //Отпустили не в тайминг
+        hitFlash.trigger(RED, timePassedMs - currentNote.note.timing_ms);
+        currentNote.note.release_offset_ms = timePassedMs - (currentNote.note.timing_ms + currentNote.note.length_ms);
         return;
     }
 
-    currentNote.release_offset_ms = timePassedMs - (currentNote.timing_ms + currentNote.length_ms);
-
-    //hitFlash.trigger(GREEN, timePassedMs - (currentNote.timing_ms + currentNote.length_ms));
-
-    //renderedNotes.pop_front(); //Отжали в тайминг длинную ноту - удалим TMP
+    currentNote.note.release_offset_ms = timePassedMs - (currentNote.note.timing_ms + currentNote.note.length_ms);
 }
 
 void MapPlayer::tick() {
@@ -94,89 +63,50 @@ void MapPlayer::tick() {
     startTime = now;
     timePassedMs += int(realDelta);
 
-    // 1) ДОБАВЛЯЕМ НОВЫЕ ноты, начиная с nextNoteIndex
+    //on add
     while (nextNoteIndex < loadedNotes.size() &&
-        loadedNotes[nextNoteIndex].timing_ms < timePassedMs + 15000) //hardcoded
+        loadedNotes[nextNoteIndex].note.timing_ms < timePassedMs + 15000) //hardcoded
     {
         renderedNotes.push_back(loadedNotes[nextNoteIndex]);
         nextNoteIndex++;
     }
 
+    //on delete
     while (!renderedNotes.empty() &&
-        renderedNotes.front().timing_ms + NOTE_HIT_WINDOW_GOOD_MS + renderedNotes.front().length_ms < timePassedMs)
+        renderedNotes.front().note.timing_ms + Settings::NOTE_HIT_WINDOW_GOOD_MS + renderedNotes.front().note.length_ms < timePassedMs)
     {
-        //hitFlash.trigger(RED, timePassedMs - renderedNotes.front().timing_ms);
         renderedNotes.pop_front();
     }
-
-    if (IsKeyPressed(KEY_X)) {
-        this->press();
-    }
-    if (IsKeyReleased(KEY_X)) {
-        this->release();
-    }
+    
 }
 
-void MapPlayer::drawNotes() {
+void MapPlayer::updateControls() {
+    if (IsKeyPressed(KEY_X)) this->press();
+    if (IsKeyReleased(KEY_X)) this->release();
 
-    for (auto& n : renderedNotes) {
-        const float previewMs = float(previewWindowMs);
-        const float scrollW = float(GetScreenWidth() - hitX);
-        int screenH = GetScreenHeight();
-        const int noteWidth = 8;  // только для tap-нот
+    if (IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD))
+        approachRate += 0.1;
+    if (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT))
+        approachRate -= 0.1;
+}
 
-        // 1) позиция головы
-        float headDelta = (n.timing_ms - timePassedMs) * speedMultiplier;
-        if (headDelta < 0) headDelta = 0;
-        int xH = hitX + int((headDelta / previewMs) * scrollW + 0.5f);
-
-        if (n.length_ms == 0) {
-            // TAP-нота (как раньше)
-            if (timePassedMs < n.timing_ms) {
-                DrawRectangle(xH - noteWidth / 2, 0, noteWidth, screenH, BLACK);
-            }
-            else {
-                int tailDist = (n.timing_ms + NOTE_HIT_WINDOW_GOOD_MS) - timePassedMs;
-                if (tailDist > 0) {
-                    float ratio = float(tailDist) / float(NOTE_HIT_WINDOW_GOOD_MS);
-                    int   h = int(screenH * ratio + 0.5f);
-                    int   y = (screenH - h) / 2;
-                    DrawRectangle(xH - noteWidth / 2, y, noteWidth, h, BLACK);
-                }
-            }
-        }
-        else {
-            // HOLD-нота: рассчитываем позицию хвоста
-            float tailDelta = (n.timing_ms + n.length_ms - timePassedMs) * speedMultiplier;
-            if (tailDelta < 0) tailDelta = 0;
-            int xT = hitX + int((tailDelta / previewMs) * scrollW + 0.5f);
-
-            // ширина = abs(xT - xH)
-            int xs = std::min(xH, xT);
-            int xe = std::max(xH, xT);
-            int width = xe - xs;
-
-            // рисуем прямоугольник нужной ширины и полной высоты
-            DrawRectangle(xs, 0, width, screenH, BLACK);
-        }
-    }
-
+void MapPlayer::updateInputFeedback() {
     if (renderedNotes.empty()) return;
 
-    const Note& currentNote = renderedNotes.front();
+    const NoteEntry& currentNote = renderedNotes.front();
 
-    if (currentNote.hit_offset_ms.has_value()) {
-        if (currentNote.length_ms == 0) {
+    if (currentNote.note.hit_offset_ms.has_value()) {
+        if (currentNote.note.length_ms == 0) {
             //Note
-            if (std::abs(currentNote.hit_offset_ms.value()) <= NOTE_HIT_WINDOW_GOOD_MS) {
-                hitFlash.trigger(GREEN, currentNote.hit_offset_ms.value());
-               // renderedNotes.pop_front();
+            if (std::abs(currentNote.note.hit_offset_ms.value()) <= Settings::NOTE_HIT_WINDOW_GOOD_MS) {
+                hitFlash.trigger(GREEN, currentNote.note.hit_offset_ms.value());
+                // renderedNotes.pop_front();
             }
         }
-        if (currentNote.length_ms != 0) {
+        if (currentNote.note.length_ms != 0) {
             //LN
-            if (std::abs(currentNote.hit_offset_ms.value()) <= NOTE_HIT_WINDOW_GOOD_MS) {
-                hitFlash.trigger(GREEN, currentNote.hit_offset_ms.value());
+            if (std::abs(currentNote.note.hit_offset_ms.value()) <= Settings::NOTE_HIT_WINDOW_GOOD_MS) {
+                hitFlash.trigger(GREEN, currentNote.note.hit_offset_ms.value());
             }
             else {
                 //hitFlash.trigger(BLUE, currentNote.hit_offset_ms.value());
@@ -185,36 +115,51 @@ void MapPlayer::drawNotes() {
 
     }
 
-    if (currentNote.release_offset_ms.has_value()) {
-        if (std::abs(currentNote.release_offset_ms.value()) <= NOTE_HIT_WINDOW_GOOD_MS) {
-            hitFlash.trigger(YELLOW, currentNote.hit_offset_ms.value());
+    if (currentNote.note.release_offset_ms.has_value()) {
+        if (std::abs(currentNote.note.release_offset_ms.value()) <= Settings::NOTE_HIT_WINDOW_GOOD_MS) {
+            hitFlash.trigger(YELLOW, currentNote.note.hit_offset_ms.value());
         }
         else {
-            hitFlash.trigger(RED, currentNote.hit_offset_ms.value());
+            hitFlash.trigger(RED, currentNote.note.hit_offset_ms.value());
         }
+    }
+}
+
+void MapPlayer::drawNotes() {
+
+    const float travelDistancePx = float(GetScreenWidth() - Settings::HIT_WIDTH);
+
+    for (auto& entry : renderedNotes) {
+        const auto& n = entry.note;
+        float headDelta = (n.timing_ms - timePassedMs) * approachRate;
+        float tailDelta = (n.timing_ms + n.length_ms - timePassedMs) * approachRate;
+
+        if (headDelta < 0) headDelta = 0;
+        
+        int startX = Settings::HIT_WIDTH + int((headDelta / Settings::NOTE_PREVIEW_TIME_MS) * travelDistancePx);
+        int endX = Settings::HIT_WIDTH + int((tailDelta / Settings::NOTE_PREVIEW_TIME_MS) * travelDistancePx);
+
+        DrawRectangle(startX, 0, std::max(endX - startX, Settings::BASE_NOTE_WIDTH), Settings::NOTE_HEIGHT, BLACK);
     }
 
 }
 
 void MapPlayer::updateAndDraw() {
-    if (IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD))
-        speedMultiplier = std::min(speedMultiplier + step, maxSpeed);
-    if (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT))
-        speedMultiplier = std::max(speedMultiplier - step, minSpeed);
-
     tick();
+    updateControls();
+    updateInputFeedback();
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
 
-    hitFlash.drawZone(hitX, GetScreenHeight());
-    hitFlash.drawOffset(0, hitX / 2, 20);
+    hitFlash.drawZone(Settings::HIT_WIDTH, GetScreenHeight());
+    hitFlash.drawOffset(0, Settings::HIT_WIDTH / 2, 20);
 
-    DrawLine(hitX, 0, hitX, GetScreenHeight(), BLUE);
+    DrawLine(Settings::HIT_WIDTH, 0, Settings::HIT_WIDTH, GetScreenHeight(), BLUE);
 
     drawNotes();
 
-    const std::string title = "Time: " + std::to_string(timePassedMs) + " Speed: " + std::to_string(speedMultiplier);
+    const std::string title = "Time: " + std::to_string(timePassedMs) + " AR: " + std::to_string(approachRate);
     SetWindowTitle(title.c_str());
 
     EndDrawing();
