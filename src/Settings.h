@@ -6,4 +6,6 @@ namespace Settings {
 	const int BASE_NOTE_WIDTH = 8;
 	const int NOTE_HEIGHT = 80;
 	const int COMBO_HEIGHT = 20;
+	const int WINDOW_WIDTH = 800;
+	const int WINDOW_HEIGHT = 100;
 }

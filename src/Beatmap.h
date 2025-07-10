@@ -6,44 +6,53 @@
 #include <optional>
 #include <deque>
 
-//Single bpm impl
-
 enum Signature {
 	ONE_FOUR,
 	ONE_THREE,
 };
 
-struct NoteEntry {
-	Note      note;
+struct BpmSection {
 	Signature signature;
-	int group;
+	size_t bpm;
+	int timingMs;
+	int offsetMs;
 };
 
-struct Grouped {
-	size_t    startIdx;  
-	size_t    endIdx;   
-	Signature signature; 
+struct TimedNote {
+	size_t startId;
+	size_t endId;
 };
 
-class Beatmap {
+class BeatmapConstructor {
 public:
-	Beatmap() = default;
+	BeatmapConstructor() = default;
 
-	~Beatmap();
+	~BeatmapConstructor();
 
-	void load(int bpm, const std::string& filename);
+	void readFrom(const std::string& path);
+	void writeTo(const std::string& path);
+
+	void init(size_t bpm);
+
+	size_t getSongLengthMs();
 						  
-	std::vector<int> getTimingsFor(Signature signature);
+	std::vector<int> getTimings();
 
-	void placeNote(Signature signature, int timingStartId, int timingEndId);
+	void placeNote(std::vector<int>& timings,
+		size_t startId,
+		size_t endId);
 
-	const std::deque<NoteEntry>& getEntries() const { return entries; }
+	std::vector<BpmSection> getSections();
+	void addSection(BpmSection section);
+	void removeSection(size_t id);
+
+	const std::deque<Note>& getEntries() const { return entries; }
 
 private:
+	std::vector<BpmSection> bpmSections;
+	size_t songLengthMs = 100000;
+	size_t offsetMs = 0;
 
-	int                           bpm = 120;
-	int                           songLengthMs = 100000;
-	Music                         music;
-
-	std::deque<NoteEntry>         entries;   
+	std::deque<Note> entries;   
+	std::deque<TimedNote> timedEntries;
 };

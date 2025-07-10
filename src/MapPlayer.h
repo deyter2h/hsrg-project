@@ -20,7 +20,7 @@ public:
 
 private:
     // загрузка нот
-    Beatmap beatmap;
+    BeatmapConstructor beatmap;
 
     bool loadFromPath(const std::string& path);
 
@@ -29,12 +29,20 @@ private:
     void updateControls();
     void updateInputFeedback();
     void drawNotes();
+    void drawInput(); //temp idk
+
+    void onInvalidPress();
+    void onNoteMiss(Note &note);
+    void onNoteHit(Note& note);
+    void onLongNoteEndMiss(Note& note);
+    void onLongNoteEndHit(Note& note);
 
     // внутренняя структура
-    std::deque<NoteEntry> loadedNotes;
-    std::deque<NoteEntry> renderedNotes;
+    std::deque<Note> loadedNotes;
+    std::deque<Note> renderedNotes;
     size_t nextNoteIndex = 0;
 
+    std::set<size_t> keysDown;
 
     int               timePassedMs = 0;
     std::chrono::steady_clock::time_point startTime;
@@ -42,7 +50,7 @@ private:
 
     float approachRate = 0.5f;
 
-    Flash hitFlash;
+    Color inputColor = GRAY;
 
     void press();
     void release();

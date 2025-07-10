@@ -65,3 +65,37 @@ else()
   set(GIT_VERSION "unknown")
 endif()
 target_compile_definitions(HSRG PRIVATE GIT_VERSION="${GIT_VERSION}")
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 4) Fetch & expose raygui
+# ──────────────────────────────────────────────────────────────────────────────
+include(FetchContent)
+FetchContent_Declare(
+  raygui
+  GIT_REPOSITORY https://github.com/raysan5/raygui.git
+  GIT_TAG        master
+  UPDATE_DISCONNECTED TRUE
+)
+FetchContent_MakeAvailable(raygui)
+
+# raygui doesn’t ship a “find_package” by default,
+# so we know its source dir is in ${raygui_SOURCE_DIR}/src
+set(_rayguiInc ${raygui_SOURCE_DIR}/src)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 5) Your executable already defined as HSRG…
+#    Just add raygui’s include dir and link to it:
+# ──────────────────────────────────────────────────────────────────────────────
+target_include_directories(HSRG PRIVATE
+  src
+  ${_rayInc}      # from raylib
+  ${_rayguiInc}   # from raygui
+)
+
+# raygui is a header-only library, so there’s no imported target to link;
+# you only need to include its headers.  If you wanted to build the
+# example module in raygui you could do add_subdirectory, but that’s optional.
+# If raygui ever adds a CMake target (e.g. `raygui::raygui`) you’d instead:
+#   target_link_libraries(HSRG PRIVATE raygui::raygui)
+
+# End of CMakeLists.txt
