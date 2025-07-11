@@ -45,7 +45,7 @@ endif()
 file(GLOB_RECURSE SRC src/*.cpp)
 file(GLOB_RECURSE HDR src/*.h)
 
-add_executable(HSRG ${SRC} ${HDR})
+add_executable(HSRG ${SRC} ${HDR} "src/Timable.h" "src/Timable.cpp")
 target_include_directories(HSRG PRIVATE
   src
   ${_rayInc}

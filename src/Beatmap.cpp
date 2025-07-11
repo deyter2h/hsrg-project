@@ -22,18 +22,6 @@ static std::string sigToString(Signature s) {
     return "4/4";
 }
 
-void BeatmapConstructor::init(size_t bpm) {
-    this->bpmSections.push_back({ Signature::ONE_FOUR, bpm, 0 });
-
-    /*if (music.frameCount == 0) {
-        std::cout << "cant load song" << std::endl;
-        return;
-    }*/
-
-    //float seconds = GetMusicTimeLength(music);
-    //this->songLengthMs = int(std::round(seconds * 1000.0f));
-}
-
 BeatmapConstructor::~BeatmapConstructor() {
 }
 
@@ -98,6 +86,10 @@ void BeatmapConstructor::addSection(BpmSection section) {
 
 void BeatmapConstructor::removeSection(size_t id) {
     if (id > 0 && id < bpmSections.size()) this->bpmSections.erase(bpmSections.begin() + id);
+}
+
+void BeatmapConstructor::onBeat()
+{
 }
 
 void BeatmapConstructor::readFrom(const std::string& path) {

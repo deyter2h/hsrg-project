@@ -6,10 +6,7 @@
 #include <optional>
 #include <deque>
 
-enum Signature {
-	ONE_FOUR,
-	ONE_THREE,
-};
+#include "./Timable.h"
 
 struct BpmSection {
 	Signature signature;
@@ -23,7 +20,7 @@ struct TimedNote {
 	size_t endId;
 };
 
-class BeatmapConstructor {
+class BeatmapConstructor : Timeable {
 public:
 	BeatmapConstructor() = default;
 
@@ -31,8 +28,6 @@ public:
 
 	void readFrom(const std::string& path);
 	void writeTo(const std::string& path);
-
-	void init(size_t bpm);
 
 	size_t getSongLengthMs();
 						  
@@ -47,6 +42,8 @@ public:
 	void removeSection(size_t id);
 
 	const std::deque<Note>& getEntries() const { return entries; }
+
+	void onBeat() override;
 
 private:
 	std::vector<BpmSection> bpmSections;

@@ -24,9 +24,11 @@
 #include "raygui.h"
 #include <raymath.h>
 #include <string>
-#include "Beatmap.h"
+//#include "Beatmap.h"
 #include <cmath>
 #include <algorithm>
+#include "./Timable.h"
+#include <iostream>
 
 static const int   SCREEN_WIDTH = 1024;
 static const int   SCREEN_HEIGHT = 600;
@@ -53,6 +55,15 @@ static const char* SigToString(Signature s) {
     }
 }
 
+class Editor : public Timeable {
+public:
+    Editor() = default;
+    void onBeat() override {};
+
+private:
+
+};
+
 int main() {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Rhythm Map Editor");
     SetTargetFPS(60);
@@ -64,12 +75,15 @@ int main() {
     const char* speedOptions[] = { "0.5x", "1x", "1.5x", "2x" };
     const int   speedCount = 4;
 
-    BeatmapConstructor bm;
-    bm.readFrom("map.txt");
-    auto sections = bm.getSections();
-    int  songLengthMs = bm.getSongLengthMs();
+    Editor ed = Editor();
+   // ed.pause();
 
-    std::vector<float> allBeats;
+    //BeatmapConstructor bm;
+    //bm.readFrom("map.txt");
+    //auto sections = bm.getSections();
+    //int  songLengthMs = bm.getSongLengthMs();
+
+    /*std::vector<float> allBeats;
     for (size_t si = 0; si < sections.size(); ++si) {
         auto& sec = sections[si];
         int  start = sec.timingMs + sec.offsetMs;
@@ -81,42 +95,31 @@ int main() {
             allBeats.push_back(start + bi * float(beatMs));
         }
     }
-    std::sort(allBeats.begin(), allBeats.end());
-
+    std::sort(allBeats.begin(), allBeats.end());*/
+    std::vector<Beat> beats = ed.getCurrentBeats(ed.getTimePassed(), 3000);
     while (!WindowShouldClose()) {
         
         float wheel = GetMouseWheelMove();
-        if (wheel != 0 && !allBeats.empty()) {
-            // world‐ms under center
-            float centerPx = TIMELINE_AREA.x + TIMELINE_AREA.width * 0.5f;
-            float centerMs = (timelineOffset + (centerPx - TIMELINE_AREA.x)) / PIXELS_PER_MS;
 
-            float targetMs = centerMs;
+        if (IsKeyPressed(KEY_SPACE)) {
+            if (ed.isPaused()) ed.resume();
+            else ed.pause();
+        }
+        
+        if (wheel != 0) {
+            ed.incrementTime(wheel * (int)ed.getBeatTime());
+            beats = ed.getCurrentBeats(ed.getTimePassed(), 3000);
+        }
 
-            if (wheel > 0) {
-                // next beat strictly after centre
-                auto it = std::upper_bound(allBeats.begin(), allBeats.end(), centerMs);
-                if (it != allBeats.end()) targetMs = *it;
-            }
-            else {
-                // previous beat strictly before centre
-                auto it = std::lower_bound(allBeats.begin(), allBeats.end(), centerMs);
-                if (it != allBeats.begin()) {
-                    --it;
-                    targetMs = *it;
-                }
-            }
-
-            // recalc offset so targetMs lands at centrePx
-            timelineOffset = targetMs * PIXELS_PER_MS - (centerPx - TIMELINE_AREA.x);
-            timelineOffset = Clamp(timelineOffset, 0.0f, songLengthMs * PIXELS_PER_MS);
+        if (beats.back().timing_ms <= ed.getTimePassed()) {
+            beats = ed.getCurrentBeats(ed.getTimePassed(), 3000);
         }
 
         BeginDrawing();
         ClearBackground(UI_BG_COLOR);
 
         DrawText(
-            TextFormat("Offset: %.0f", timelineOffset),
+            std::to_string(ed.getTimePassed()).c_str(),
             SCREEN_WIDTH / 2, TIMELINE_AREA.y - 30, UI_FONT_SIZE_LABEL, UI_LINE_COLOR
         );
 
@@ -133,10 +136,10 @@ int main() {
         DrawRectangleRec(TIMELINE_AREA, UI_TIMELINE_BG);
 
         // draw blue vertical playhead line
-        float playX = TIMELINE_AREA.x + TIMELINE_AREA.width * 0.5f;
+        /*float playX = TIMELINE_AREA.x + TIMELINE_AREA.width * 0.5f;
         DrawLineV({ playX, (float)TIMELINE_AREA.y },
             { playX, (float)(TIMELINE_AREA.y + TIMELINE_AREA.height) },
-            BLUE);
+            BLUE);*/
 
         GuiEnable();
         BeginScissorMode(
@@ -146,7 +149,7 @@ int main() {
 
         int yLine = TIMELINE_AREA.y + TIMELINE_AREA.height / 2;
 
-        for (size_t i = 0; i < sections.size(); ++i) {
+        /*for (size_t i = 0; i < sections.size(); ++i) {
             auto& sec = sections[i];
             int  start = sec.timingMs;
             int  end = (i + 1 < sections.size())
@@ -166,16 +169,23 @@ int main() {
                 int(x1), int(band.y + 5),
                 UI_FONT_SIZE_LABEL, UI_LINE_COLOR
             );
-        }
+        }*/
 
-        DrawLine(
+        /*DrawLine(
             (int)TIMELINE_AREA.x, yLine,
             (int)(TIMELINE_AREA.x + TIMELINE_AREA.width), yLine,
             UI_LINE_COLOR
-        );
+        );*/
 
-        const float pxPerMs = PIXELS_PER_MS;
-        for (size_t si = 0; si < sections.size(); ++si) {
+        for (int bi = 0; bi < beats.size(); bi ++) {
+            int  division = (beats[bi].signature == Signature::ONE_THREE) ? 3 : 4;
+            int tickH = (bi % division == 0) ? UI_TICK_HEIGHT_MAIN : UI_TICK_HEIGHT_SUB;
+            float x = (beats[bi].timing_ms * PIXELS_PER_MS) - ed.getTimePassed() * PIXELS_PER_MS;
+            DrawLine(int(x), yLine - tickH, int(x), yLine + tickH, UI_LINE_COLOR);
+        }
+
+
+       /* for (size_t si = 0; si < sections.size(); ++si) {
             auto& sec = sections[si];
             int  start = sec.timingMs + sec.offsetMs;
             int  end = (si + 1 < sections.size())
@@ -192,7 +202,7 @@ int main() {
                 if (worldMs < start || worldMs > end) continue;
                 float x = TIMELINE_AREA.x + worldMs * pxPerMs - timelineOffset;
                 int tickH = (bi % division == 0) ? UI_TICK_HEIGHT_MAIN : UI_TICK_HEIGHT_SUB;
-                DrawLine(int(x), yLine - tickH, int(x), yLine + tickH, UI_LINE_COLOR);
+                
 
                 int   beatNum = (bi % division) + 1;
                 Color col = (beatNum == 1) ? UI_DOWNBEAT_COLOR : UI_BEAT_COLOR;
@@ -206,7 +216,7 @@ int main() {
                     col
                 );
             }
-        }
+        }*/
 
         EndScissorMode();
         GuiDisable();
