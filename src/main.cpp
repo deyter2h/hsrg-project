@@ -1,227 +1,236 @@
-﻿//#include "raylib.h"
-//#include <algorithm>
-//#include "MapPlayer.h"
-//#include "Settings.h"
+﻿#include "Editor.h"
+
+
+
+//struct EditorNote : Note {
+//    bool played = false;
+//};
 //
-//int main() {
-//    InitAudioDevice();
-//    InitWindow(800, Settings::WINDOW_HEIGHT, "HSRG");
-//    SetTargetFPS(60);
+//class Editor : public Timeable {
+//public:
+//    Editor() {
+//        
+//        hitSound = LoadSound("C:/music/sound.wav");
+//        
+//    };
 //
-//    MapPlayer player;
-//    while (!WindowShouldClose()) {
-//        player.updateAndDraw();
+//    void update() {
+//        tick();
+//        _handleBeatSound(); //why even
+//        handleInput();
+//        render();
 //    }
 //
-//    CloseWindow();
-//    return 0;
-//}
+//private:
+//    float timelineZoom = 1.0f;
+//    int songOffset = 0;
 //
-
-// map_editor_ui.cpp
-#include "raylib.h"
-#define RAYGUI_IMPLEMENTATION
-#include "raygui.h"
-#include <raymath.h>
-#include <string>
-//#include "Beatmap.h"
-#include <cmath>
-#include <algorithm>
-#include "./Timable.h"
-#include <iostream>
-
-static const int   SCREEN_WIDTH = 1024;
-static const int   SCREEN_HEIGHT = 600;
-static const Rectangle TIMELINE_AREA = { 20, 80, SCREEN_WIDTH - 40, 100 };
-static const float PIXELS_PER_MS = 0.5f;
-static const Color UI_BG_COLOR = RAYWHITE;
-static const Color UI_TIMELINE_BG = LIGHTGRAY;
-static const Color UI_BAND_COLOR_A = Fade(GRAY, 0.3f);
-static const Color UI_BAND_COLOR_B = Fade(GRAY, 0.5f);
-static const Color UI_LINE_COLOR = DARKGRAY;
-static const Color UI_DOWNBEAT_COLOR = RED;
-static const Color UI_BEAT_COLOR = DARKGRAY;
-static const int   UI_FONT_SIZE_LABEL = 14;
-static const int   UI_FONT_SIZE_BEAT = 12;
-static const int   UI_TICK_HEIGHT_MAIN = 20;
-static const int   UI_TICK_HEIGHT_SUB = 10;
-static const float UI_SCROLL_SPEED = 20.0f;
-
-static const char* SigToString(Signature s) {
-    switch (s) {
-    case Signature::ONE_FOUR:  return "4/4";
-    case Signature::ONE_THREE: return "3/4";
-    default:                   return "?";
-    }
-}
-
-class Editor : public Timeable {
-public:
-    Editor() = default;
-    void onBeat() override {};
-
-private:
-
-};
+//    int nextHitTiming = songOffset;
+//
+//    std::map<int, EditorNote> placedNotes;
+//    Sound hitSound;
+//
+//    void _handleBeatSound() {
+//        if (this->getTimePassed() >= nextHitTiming) {
+//                  
+//        }
+//        for (auto& i : placedNotes) {
+//            if (getTimePassed() >= i.first && !i.second.played) {
+//                i.second.played = true;
+//                PlaySound(hitSound);
+//            }
+//
+//            if (getTimePassed() < i.first) {
+//                i.second.played = false;
+//            }
+//        }
+//    }
+//
+//    void handlePlacedNotes() {
+//        float pxPerMs = PIXELS_PER_MS;
+//        int   elapsed = getTimePassed();
+//
+//        for (auto& i : placedNotes) {
+//            float x = TIMELINE_AREA.x
+//                + (i.first - elapsed) * pxPerMs * timelineZoom;
+//
+//            DrawCircle(x, TIMELINE_AREA.y + TIMELINE_AREA.height / 2, 12, RED);
+//        }
+//    }
+//
+//    void handleInput() {
+//        if (IsKeyPressed(KEY_SPACE)) {
+//            isPaused() ? resume() : pause();
+//        }
+//
+//        float wheel = GetMouseWheelMove();
+//        if (wheel != 0.0f) {
+//            incrementTime(int(wheel) * getBeatTime()); //skip on next beat, not this
+//        }
+//    }
+//
+//    void render() {
+//        GuiEnable();
+//        DrawText(
+//            TextFormat("Time: %d ms", getTimePassed()),
+//            SCREEN_WIDTH / 2 - 50, TIMELINE_AREA.y - 30,
+//            UI_FONT_SIZE_LABEL, UI_LINE_COLOR
+//        );
+//        DrawRectangleRec(TIMELINE_AREA, UI_TIMELINE_BG);
+//        
+//        if (GuiButton({ 20,20,100,30 }, "Load Map")) { /*…*/ }
+//        drawBpmSelection();
+//        drawOffsetSelection();
+//        drawSignatureSelection();
+//        GuiSlider({ 580,20,100,30 }, "-", "+", &timelineZoom, 0.5f, 5.0f);
+//        
+//        GuiDisable();
+//        drawTimeline();
+//        handlePlacedNotes();
+//    }
+//
+//    void drawBpmSelection() {
+//        static bool  isActive = false;
+//
+//        int ret = GuiSpinner({ 160,20,100,30 }, "BPM", &this->bpm, 1, 1000, isActive); //fix ref borders
+//
+//        if (ret) {
+//            isActive = !isActive;
+//        }
+//    }
+//
+//    void drawOffsetSelection() {
+//        static bool  isActive = false;
+//        //allow up to -song len + song len
+//        int ret = GuiSpinner({ 300,20,100,30 }, "Offset", &this->songOffset, -999999, 999999, isActive); //fix ref borders
+//
+//        if (ret) {
+//            isActive = !isActive;
+//        }
+//    }
+//
+//    void drawSignatureSelection() {
+//        static bool  isActive = false;
+//        static int   selIndex = 0; 
+//
+//        std::string sign_str = std::accumulate(
+//            common_signatures.begin(), common_signatures.end(),
+//            std::string{},
+//            [](const std::string& acc, const SignatureInfo& el) {
+//                return acc.empty()
+//                    ? el.label
+//                    : acc + ";" + el.label;
+//            }
+//        );
+//     
+//       int ret = GuiDropdownBox(
+//            (Rectangle{
+//            440, 20, 100, 30
+//                }) ,
+//           sign_str.c_str(),
+//            &selIndex,
+//           isActive
+//        );
+//
+//       if (ret) {
+//           isActive = !isActive;
+//           setSignature(common_signatures[selIndex]);
+//       } 
+//       
+//    }
+//
+//    void drawTimeline() {
+//        GuiEnable();
+//        BeginScissorMode(
+//            int(TIMELINE_AREA.x), int(TIMELINE_AREA.y),
+//            int(TIMELINE_AREA.width), int(TIMELINE_AREA.height) + 100
+//        );
+//
+//        int centerY = TIMELINE_AREA.y + TIMELINE_AREA.height / 2;
+//        auto beats = calculateBeats(8);
+//
+//        int  division = getSignatureDivision();
+//        float pxPerMs = PIXELS_PER_MS;
+//        int   elapsed = getTimePassed();
+//
+//        // Your new zoom factor
+//        float zoom = timelineZoom;  // could be changed at runtime
+//
+//        // Precompute all beat X positions with zoom
+//        std::vector<float> xs;
+//        xs.reserve(beats.size());
+//        for (auto& b : beats) {
+//            float x = TIMELINE_AREA.x
+//                + (b.timing_ms - elapsed) * pxPerMs * zoom;
+//            xs.push_back(x); //offset goes not here prob
+//        }
+//
+//        Vector2 mp = GetMousePosition();
+//
+//        // Highlight hovered segment
+//        for (size_t i = 0; i + 1 < xs.size(); ++i) {
+//            const int width = xs[i + 1] - xs[i];
+//            Rectangle slice{
+//                xs[i] - width/2,
+//                TIMELINE_AREA.y,
+//                width,
+//                TIMELINE_AREA.height
+//            };
+//            if (CheckCollisionPointRec(mp, slice)) {
+//                DrawRectangleRec(slice, Fade(UI_LINE_COLOR, 0.1f));
+//                DrawText(std::to_string(beats[i].timing_ms).c_str(), xs[i] + (xs[i + 1] - xs[i])/2,
+//                    TIMELINE_AREA.y + TIMELINE_AREA.height - 12, 12, BLACK);
+//
+//                if (IsMouseButtonPressed(MouseButton::MOUSE_BUTTON_LEFT)) {
+//                    placedNotes.insert({ beats[i].timing_ms, { beats[i].timing_ms, 0 } });
+//                }
+//
+//                if (IsMouseButtonPressed(MouseButton::MOUSE_BUTTON_RIGHT)) {
+//                    placedNotes.erase(beats[i].timing_ms);
+//                }
+//
+//                break;
+//            }
+//        }
+//
+//        handlePlacedNotes();
+//
+//               // Draw ticks and labels
+//        for (size_t i = 0; i < xs.size(); ++i) {
+//            bool isDown = (i % division) == 0;
+//            int  tickH = isDown ? UI_TICK_HEIGHT_MAIN : UI_TICK_HEIGHT_SUB;
+//            Color col = isDown ? UI_DOWNBEAT_COLOR : UI_LINE_COLOR;
+//
+//            float x = xs[i];
+//            DrawLine(int(x), centerY - tickH, int(x), centerY + tickH, col);
+//
+//            const char* txt = TextFormat("%d", beats[i].index + 1);
+//            int txtW = MeasureText(txt, UI_FONT_SIZE_BEAT);
+//            DrawText(
+//                txt,
+//                int(x - txtW / 2),
+//                centerY + UI_TICK_HEIGHT_MAIN + 2,
+//                UI_FONT_SIZE_BEAT,
+//                UI_BEAT_COLOR
+//            );
+//        }
+//
+//        EndScissorMode();
+//        GuiDisable();
+//    }
+//};
 
 int main() {
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Rhythm Map Editor");
+    InitAudioDevice();
+    InitWindow(800, 600, "R");
     SetTargetFPS(60);
 
-    float timelineOffset = 0.0f;
-    bool  showLoadDialog = false;
-    bool  showAddSection = false;
-    int   speedSelIndex = 0;
-    const char* speedOptions[] = { "0.5x", "1x", "1.5x", "2x" };
-    const int   speedCount = 4;
-
     Editor ed = Editor();
-   // ed.pause();
-
-    //BeatmapConstructor bm;
-    //bm.readFrom("map.txt");
-    //auto sections = bm.getSections();
-    //int  songLengthMs = bm.getSongLengthMs();
-
-    /*std::vector<float> allBeats;
-    for (size_t si = 0; si < sections.size(); ++si) {
-        auto& sec = sections[si];
-        int  start = sec.timingMs + sec.offsetMs;
-        int  end = (si + 1 < sections.size()) ? sections[si + 1].timingMs : songLengthMs;
-        int  division = (sec.signature == Signature::ONE_THREE) ? 3 : 4;
-        double beatMs = 60000.0 / sec.bpm / division;
-        int    count = int(std::ceil((end - start) / beatMs));
-        for (int bi = 0; bi <= count; ++bi) {
-            allBeats.push_back(start + bi * float(beatMs));
-        }
-    }
-    std::sort(allBeats.begin(), allBeats.end());*/
-    std::vector<Beat> beats = ed.getCurrentBeats(ed.getTimePassed(), 3000);
+    ed.restart();
+    ed.pause();
+    
     while (!WindowShouldClose()) {
-        
-        float wheel = GetMouseWheelMove();
-
-        if (IsKeyPressed(KEY_SPACE)) {
-            if (ed.isPaused()) ed.resume();
-            else ed.pause();
-        }
-        
-        if (wheel != 0) {
-            ed.incrementTime(wheel * (int)ed.getBeatTime());
-            beats = ed.getCurrentBeats(ed.getTimePassed(), 3000);
-        }
-
-        if (beats.back().timing_ms <= ed.getTimePassed()) {
-            beats = ed.getCurrentBeats(ed.getTimePassed(), 3000);
-        }
-
-        BeginDrawing();
-        ClearBackground(UI_BG_COLOR);
-
-        DrawText(
-            std::to_string(ed.getTimePassed()).c_str(),
-            SCREEN_WIDTH / 2, TIMELINE_AREA.y - 30, UI_FONT_SIZE_LABEL, UI_LINE_COLOR
-        );
-
-        if (GuiButton({ 20, 20, 120, 30 }, "Load Map")) {
-            showLoadDialog = true;
-        }
-        if (GuiButton({ 160, 20, 180, 30 }, "Add Section")) {
-            showAddSection = true;
-        }
-        /*speedSelIndex = GuiComboBox(
-            { 360, 20, 120, 30 }, 0, 0
-        );*/
-
-        DrawRectangleRec(TIMELINE_AREA, UI_TIMELINE_BG);
-
-        // draw blue vertical playhead line
-        /*float playX = TIMELINE_AREA.x + TIMELINE_AREA.width * 0.5f;
-        DrawLineV({ playX, (float)TIMELINE_AREA.y },
-            { playX, (float)(TIMELINE_AREA.y + TIMELINE_AREA.height) },
-            BLUE);*/
-
-        GuiEnable();
-        BeginScissorMode(
-            (int)TIMELINE_AREA.x, (int)TIMELINE_AREA.y,
-            (int)TIMELINE_AREA.width, (int)TIMELINE_AREA.height + 100
-        );
-
-        int yLine = TIMELINE_AREA.y + TIMELINE_AREA.height / 2;
-
-        /*for (size_t i = 0; i < sections.size(); ++i) {
-            auto& sec = sections[i];
-            int  start = sec.timingMs;
-            int  end = (i + 1 < sections.size())
-                ? sections[i + 1].timingMs
-                : songLengthMs;
-            float x1 = TIMELINE_AREA.x + start * PIXELS_PER_MS - timelineOffset;
-            float x2 = TIMELINE_AREA.x + end * PIXELS_PER_MS - timelineOffset;
-            Rectangle band = { x1, TIMELINE_AREA.y + 100, x2 - x1, TIMELINE_AREA.height };
-            DrawRectangleRec(band, (i % 2 == 0) ? UI_BAND_COLOR_A : UI_BAND_COLOR_B);
-
-            std::string label = TextFormat(
-                "Time: %d\nOffset: %d\nBPM: %zu\nSig: %s",
-                sec.timingMs, sec.offsetMs, sec.bpm, SigToString(sec.signature)
-            );
-            DrawText(
-                label.c_str(),
-                int(x1), int(band.y + 5),
-                UI_FONT_SIZE_LABEL, UI_LINE_COLOR
-            );
-        }*/
-
-        /*DrawLine(
-            (int)TIMELINE_AREA.x, yLine,
-            (int)(TIMELINE_AREA.x + TIMELINE_AREA.width), yLine,
-            UI_LINE_COLOR
-        );*/
-
-        for (int bi = 0; bi < beats.size(); bi ++) {
-            int  division = (beats[bi].signature == Signature::ONE_THREE) ? 3 : 4;
-            int tickH = (bi % division == 0) ? UI_TICK_HEIGHT_MAIN : UI_TICK_HEIGHT_SUB;
-            float x = (beats[bi].timing_ms * PIXELS_PER_MS) - ed.getTimePassed() * PIXELS_PER_MS;
-            DrawLine(int(x), yLine - tickH, int(x), yLine + tickH, UI_LINE_COLOR);
-        }
-
-
-       /* for (size_t si = 0; si < sections.size(); ++si) {
-            auto& sec = sections[si];
-            int  start = sec.timingMs + sec.offsetMs;
-            int  end = (si + 1 < sections.size())
-                ? sections[si + 1].timingMs
-                : songLengthMs;
-            int  division = (sec.signature == Signature::ONE_THREE) ? 3 : 4;
-            double beatMs = 60000.0 / sec.bpm / division;
-            float  beatPx = float(beatMs * pxPerMs);
-            int    firstIdx = std::max(0, int(std::floor((timelineOffset / pxPerMs - start) / beatMs)));
-            int    lastIdx = std::max(0, int(std::ceil(((timelineOffset + TIMELINE_AREA.width) / pxPerMs - start) / beatMs)));
-
-            for (int bi = firstIdx; bi <= lastIdx; ++bi) {
-                float worldMs = start + bi * float(beatMs);
-                if (worldMs < start || worldMs > end) continue;
-                float x = TIMELINE_AREA.x + worldMs * pxPerMs - timelineOffset;
-                int tickH = (bi % division == 0) ? UI_TICK_HEIGHT_MAIN : UI_TICK_HEIGHT_SUB;
-                
-
-                int   beatNum = (bi % division) + 1;
-                Color col = (beatNum == 1) ? UI_DOWNBEAT_COLOR : UI_BEAT_COLOR;
-                const char* txt = TextFormat("%d", beatNum);
-                int txtW = MeasureText(txt, UI_FONT_SIZE_BEAT);
-                DrawText(
-                    txt,
-                    int(x - txtW / 2),
-                    yLine - tickH - UI_FONT_SIZE_BEAT - 2,
-                    UI_FONT_SIZE_BEAT,
-                    col
-                );
-            }
-        }*/
-
-        EndScissorMode();
-        GuiDisable();
-
-        EndDrawing();
+        ed.update();
     }
 
     CloseWindow();

@@ -1,30 +1,33 @@
-#include "./Timable.h"
+﻿#include "./Timable.h"
 #include <chrono>
 #include <iostream>
 
 Timeable::Timeable() : startTime(std::chrono::steady_clock::now()),
 pauseTime(), _isPaused(false) {
-    this->bpm = 60;
-    this->signature = Signature::ONE_FOUR;
+
 }
 
-void Timeable::tick() const
+void Timeable::tick()
 {
-    if (_isPaused) return;
+    this->timePassedMs = generateTimePassed();
 
-    /*if (this->getTimePassed() >= ) {
+    /*if (timePassedMs >= ) {
 
     }*/
 }
 
-int Timeable::getTimePassed() const
-{
+int Timeable::generateTimePassed() {
     using namespace std::chrono;
     if (_isPaused) return (int)duration_cast<milliseconds>(pauseTime - startTime).count() + time_added;
     else {
         auto now = steady_clock::now();
         return (int)duration_cast<milliseconds>(now - startTime).count() + time_added;
     }
+}
+
+int Timeable::getTimePassed() const
+{
+    return this->timePassedMs;
 }
 
 void Timeable::resume()
@@ -57,61 +60,60 @@ bool Timeable::isPaused() const
     return this->_isPaused;
 }
 
-void Timeable::setBpm(unsigned int bpm)
-{
-    this->bpm = bpm;
-}
+//void Timeable::setBpm(unsigned int bpm)
+//{
+//    this->bpm = bpm;
+//}
 
-void Timeable::setSignature(Signature sign)
-{
-    this->signature = sign;
-}
+//void Timeable::setSignature(SignatureInfo sign)
+//{
+//    this->signature = sign;
+//}
 
 void Timeable::incrementTime(int ms)
 {
     this->time_added += ms;
 }
 
-unsigned int Timeable::getBeatTime() const
-{
-    //rewrite it
-    int div = 4;
-    switch (signature) {
-    case Signature::ONE_FOUR:  div = 4; break;
-    case Signature::ONE_THREE: div = 3; break;
-    default:  div = 4; break;
-    }
+//int Timeable::getSignatureDivision() const {
+//    //float div = 4;
+//    //switch (signature) {
+//    //case Signature::ONE_FOUR:  div = 4; break;
+//    //case Signature::ONE_THREE: div = 3; break;
+//    //default:  div = 4; break;
+//    //}
+//    return signature.denominator;
+//}
 
-    return  60000.0 / bpm / double(div);;
-}
+//double  Timeable::getBeatTime() const
+//{
+//    return  60000.0 / (double)bpm / double(getSignatureDivision());
+//}
 
-std::vector<Beat> Timeable::getCurrentBeats(int timing_ms, unsigned int distance_ms) const
-{
-    std::vector<Beat> beats;
-    // 1) division from signature
-    int division = 4;
-    switch (signature) {
-    case Signature::ONE_FOUR:  division = 4; break;
-    case Signature::ONE_THREE: division = 3; break;
-    default: /* leave as 4 */           break;
-    }
-
-    // 2) ms per beat
-    double stepMs = 60000.0 / double(bpm) / double(division);
-
-    // 3) compute index range
-    double windowStart = double(timing_ms);
-    double windowEnd = windowStart + double(distance_ms);
-
-    int firstIdx = int(std::ceil(windowStart / stepMs));
-    int lastIdx = int(std::floor(windowEnd / stepMs));
-    if (lastIdx < firstIdx) return beats;
-
-    // 4) collect
-    for (int idx = firstIdx; idx <= lastIdx; ++idx) {
-        int t = int(std::round(idx * stepMs));
-        beats.push_back({ signature, t });
-    }
-    return beats;
-}
+//std::vector<Beat> Timeable::calculateBeats(unsigned int segments) const
+//{
+//    std::vector<Beat> beats;
+//    if (segments == 0) return beats;
+//
+//    int division = getSignatureDivision();  
+//    double stepMs = 60000.0 / double(bpm) / division;
+//
+//    double nowMs = double(getTimePassed());
+//
+//    double beatsSinceStart = nowMs / stepMs;
+//    if (beatsSinceStart < 0) beatsSinceStart = 0;
+//    int measureIndex = int(std::floor(beatsSinceStart / division));
+//
+//    double measureStartMs = double(measureIndex) * division * stepMs;
+//
+//    for (unsigned int i = 0; i < segments * division; ++i) {
+//        double beatTimeMs = measureStartMs + double(i) * stepMs;
+//        int roundedTime = int(std::round(beatTimeMs));
+//
+//        unsigned int beatIndex = i % division;  
+//        beats.push_back({ signature, roundedTime, beatIndex });
+//    }
+//
+//    return beats;
+//}
 

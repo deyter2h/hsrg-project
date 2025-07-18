@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(HSRG LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
@@ -45,7 +45,7 @@ endif()
 file(GLOB_RECURSE SRC src/*.cpp)
 file(GLOB_RECURSE HDR src/*.h)
 
-add_executable(HSRG ${SRC} ${HDR} "src/Timable.h" "src/Timable.cpp")
+add_executable(HSRG ${SRC} ${HDR} "src/Timable.h" "src/Timable.cpp" "src/Structs.h" "src/Editor.h" "src/Editor.cpp" "src/rayugui_impl.cpp" "src/BeatFactory.h")
 target_include_directories(HSRG PRIVATE
   src
   ${_rayInc}

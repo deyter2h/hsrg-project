@@ -1,21 +1,24 @@
+#pragma once
 #include <vector>
 #include <chrono>
+#include "Structs.h"
 
-enum Signature {
-	ONE_FOUR,
-	ONE_THREE,
-};
-
-struct Beat {
-	Signature signature;
-    int timing_ms;
-};
+//const std::vector<SignatureInfo> common_signatures ={
+//	{ 1, 1, "1/1" },
+//	{ 1, 32, "1/32" },
+//	{ 1, 16, "1/16" },
+//	{ 1, 8, "1/8" },
+//	{ 1, 4, "1/4" },
+//	{ 1, 2, "1/2" },
+//	{ 1, 6, "1/6" },
+//	{ 1, 3, "1/3" },
+//};
 
 class Timeable {
 public:
 	Timeable();
 
-	void tick() const;
+	void tick();
 
 	int getTimePassed() const;
 
@@ -24,21 +27,25 @@ public:
 	void restart();
 	bool isPaused() const;
 	
-	void setBpm(unsigned int bpm);
-	void setSignature(Signature sign);
+	//void setBpm(unsigned int bpm);
+	//void setSignature(SignatureInfo sign);
 	void incrementTime(int ms);
 
-	unsigned int getBeatTime() const;
-	std::vector<Beat> getCurrentBeats(int timing_ms, unsigned int distance_ms) const;
+	//double getBeatTime() const;
 
-	virtual void onBeat() = 0;
+	//int getSignatureDivision() const;
+	//std::vector<Beat> calculateBeats(unsigned int segments) const;
 
-private:
+protected:
 	std::chrono::steady_clock::time_point startTime;
 	std::chrono::steady_clock::time_point pauseTime;
 	int time_added;
 	bool _isPaused;
 
-	unsigned int bpm;
-	Signature signature;
+	//int bpm = 60;
+	//int offset = 0;
+	//SignatureInfo signature;
+
+	int generateTimePassed();
+	int timePassedMs = 0;
 };
