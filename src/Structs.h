@@ -9,6 +9,7 @@ struct SignatureInfo {
 
 struct Beat {
 	int timing_ms;
+	short unsigned int index;
 };
 
 struct Section {

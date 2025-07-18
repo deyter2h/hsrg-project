@@ -226,7 +226,6 @@ int main() {
     SetTargetFPS(60);
 
     Editor ed = Editor();
-    ed.restart();
     ed.pause();
     
     while (!WindowShouldClose()) {

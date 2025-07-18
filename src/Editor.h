@@ -2,7 +2,7 @@
 #include <Timable.h>
 #include "raylib.h"
 
-const Rectangle TIMELINE_AREA = { 0, 50, 800, 100 };
+const Rectangle TIMELINE_AREA = { 10, 50, 780, 100 };
 const float PIXEL_PER_MS = 0.5f;
 
 class Editor : public Timeable {

@@ -10,17 +10,17 @@ Editor::Editor() {
 	this->sections.push_back( 
 		Section(
 			{ 1, 4 },
-			60,
+			120,
 			0,
 			1000
 			)
 	);
 	this->sections.push_back(
 		Section(
-			{ 1, 4 },
-			60,
+			{ 1, 3 },
+			120,
 			1000,
-			2000
+			5000
 		)
 	);
 	//pre gen all beats
@@ -33,7 +33,11 @@ Editor::Editor() {
 }
 
 void Editor::listen() {
-
+	float wheel = GetMouseWheelMove();
+	if (wheel != 0.0f) {
+		this->_spacingMul += (wheel / 10.0f);
+		//incrementTime(int(wheel) * getBeatTime());
+	}
 }
 
 void Editor::render() {
@@ -102,9 +106,8 @@ void Editor::_draw_timeline() {
 	}
 
 	for (size_t i = 0; i < xs.size(); ++i) {
-		bool isDown = (i % sections[0].signature.denominator) == 0;
-		int  tickH = isDown ? 50 : 30;
-		Color col = isDown ? BLACK : BLACK;
+		int  tickH = pregen_beats[i].index == 1 ? 50 : 30;
+		Color col = BLACK;
 
 		float x = xs[i];
 		DrawLine(int(x), centerY - tickH, int(x), centerY + tickH, col);

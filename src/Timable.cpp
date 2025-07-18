@@ -4,7 +4,7 @@
 
 Timeable::Timeable() : startTime(std::chrono::steady_clock::now()),
 pauseTime(), _isPaused(false) {
-
+    this->restart();
 }
 
 void Timeable::tick()
