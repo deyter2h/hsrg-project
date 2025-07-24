@@ -1,9 +1,7 @@
 #pragma once
 #include <Timable.h>
 #include "raylib.h"
-
-const Rectangle TIMELINE_AREA = { 10, 50, 780, 100 };
-const float PIXEL_PER_MS = 0.5f;
+#include "Editor-Gui.h"
 
 class Editor : public Timeable {
 public:
@@ -17,12 +15,24 @@ private:
 	int offset = 0;
 
 	std::vector<Section> sections;
-	std::vector<Beat> pregen_beats;
+	std::vector<PlayableBeat> calculated_beats;
+	std::vector<Note> placed_notes;
+	CurrentState currentState;
+
+	void flushPlayedBeats();
 
 	void render();
 	void listen();
+	void onUpdateTimeline();
 
-	void _draw_timeline();
-	void _draw_playback_button();
+	EditorGui gui;
+	void handleGuiEvent(const GuiEvent& e);
+
+	//tempppp
+	Music _music;
+	Sound _sound;
+	bool isMusicValidLocal = false;
+	int songLengthMs = 0;
+
 };
 

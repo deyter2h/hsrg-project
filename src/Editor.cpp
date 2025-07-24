@@ -1,55 +1,74 @@
-#include "raylib.h"
+﻿#include "raylib.h"
 #include "raygui.h"
+#include "raymath.h"
+#include <algorithm>
 #include <iostream>
 #include "Timable.h"
 #include "Editor.h"
 #include "BeatFactory.h"
+#include "tinyfiledialog.h"
 
 Editor::Editor() {
-	//test data
-	this->sections.push_back( 
-		Section(
-			{ 1, 4 },
-			120,
-			0,
-			1000
-			)
-	);
-	this->sections.push_back(
-		Section(
-			{ 1, 3 },
-			120,
-			1000,
-			5000
-		)
-	);
-	//pre gen all beats
-	for (auto& i : sections) {
-		auto s_beats = BeatFactory::GENERATE_FROM_SECTION(i);
-		for (auto& s : s_beats) {
-			this->pregen_beats.push_back(s);
-		}
+	
+
+	_sound = LoadSound("C:/music/sound.wav");
+	setTime(0);
+
+	if (!this->sections.size()) {
+		sections.push_back({ { 4, 4 },
+DEFAULT_BPM,
+0,
+DEFAULT_SECTION_LENGTH });
+	}
+
+	this->onUpdateTimeline();
+
+}
+
+void Editor::flushPlayedBeats() {
+	for (auto& i : calculated_beats) {
+		if (i.isPlayed && i.timing_ms + offset > getTimePassed()) i.isPlayed = false;
+	}
+}
+
+void Editor::onUpdateTimeline() {
+	auto beats = BeatFactory::GENERATE_FROM_SECTIONS(this->sections);
+	this->calculated_beats.clear();
+	this->calculated_beats.resize(beats.size() + 1);
+	for (int i = 0; i < beats.size(); i++) {
+		this->calculated_beats[i] = { beats[i].timing_ms, beats[i].index, false };
 	}
 }
 
 void Editor::listen() {
 	float wheel = GetMouseWheelMove();
-	if (wheel != 0.0f) {
-		this->_spacingMul += (wheel / 10.0f);
-		//incrementTime(int(wheel) * getBeatTime());
+	if (wheel != 0.0f && sections.size()) {
+
+		int id = currentState.beatId + wheel;
+
+		if (id < 0) id = 0;
+		if (id > calculated_beats.size() - 1) id = calculated_beats.size() - 1;
+		int closestTiming = calculated_beats[id].timing_ms;
+
+		this->setTime(closestTiming);
+		if (isMusicValidLocal) {
+			SeekMusicStream(_music, (closestTiming + offset) / 1000.0f);
+		}
+		flushPlayedBeats();
+		onUpdateTimeline();
 	}
 }
 
 void Editor::render() {
 	BeginDrawing();
-	ClearBackground(RAYWHITE);
-	GuiEnable();
+	ClearBackground(GetColor(GuiGetStyle(DEFAULT, BACKGROUND_COLOR)));
 
-	_draw_timeline();
-	_draw_playback_button();
+	auto events = gui.draw_debug();
 
-
-	GuiDisable();
+	for (auto& e : events) {
+		handleGuiEvent(e);
+	}
+	gui.draw_timeline(getTimePassed(), calculated_beats, sections, _spacingMul, offset);
 	EndDrawing();
 }
 
@@ -57,77 +76,234 @@ void Editor::update() {
 	this->tick();
 	this->listen();
 	this->render();
-}
 
-void Editor::_draw_timeline() {
-	DrawRectangleRec(TIMELINE_AREA, GRAY);
-	BeginScissorMode(
-		int(TIMELINE_AREA.x), int(TIMELINE_AREA.y),
-		int(TIMELINE_AREA.width), int(TIMELINE_AREA.height) + 100
-	);
+	if (!isPaused()) {
+		if (isMusicValidLocal) {
+			UpdateMusicStream(_music);
+		}
+	}
+	//prob too much for cycling
+	int beatId = BeatFactory::findClosestBeatIndex(calculated_beats, getTimePassed());
 
-	int centerY = TIMELINE_AREA.y + TIMELINE_AREA.height / 2;
-	
-	int  elapsed = getTimePassed();
+	int sectionId = -1;
 
-	std::vector<float> xs;
-	xs.reserve(pregen_beats.size());
-	for (auto& b : pregen_beats) {
-		float x = TIMELINE_AREA.x
-			+ (b.timing_ms - elapsed) * PIXEL_PER_MS * _spacingMul;
-		xs.push_back(x);
+	for (int i = 0; i < sections.size(); i++) {
+		if (getTimePassed() >= sections[i].start_ms && getTimePassed() <= sections[i].end_ms) {
+			sectionId = i;
+			break;
+		}
 	}
 
-	Vector2 mp = GetMousePosition();
+	this->currentState = { sectionId, beatId };
+}
 
-	for (size_t i = 0; i + 1 < xs.size(); ++i) {
-		const int width = xs[i + 1] - xs[i];
-		Rectangle slice{
-			xs[i] - width / 2,
-			TIMELINE_AREA.y,
-			width,
-			TIMELINE_AREA.height
-		};
-		/*if (CheckCollisionPointRec(mp, slice)) {
-			DrawRectangleRec(slice, Fade(UI_LINE_COLOR, 0.1f));
-			DrawText(std::to_string(beats[i].timing_ms).c_str(), xs[i] + (xs[i + 1] - xs[i]) / 2,
-				TIMELINE_AREA.y + TIMELINE_AREA.height - 12, 12, BLACK);
+void Editor::handleGuiEvent(const GuiEvent& e) {
+	switch (e.type) {
+	case GuiEventType::Play: {
+		if (!sections.size()) break;
 
-			if (IsMouseButtonPressed(MouseButton::MOUSE_BUTTON_LEFT)) {
-				placedNotes.insert({ beats[i].timing_ms, { beats[i].timing_ms, 0 } });
+		this->setTime(calculated_beats[currentState.beatId].timing_ms);
+
+		if (isPaused()) {
+			if (isMusicValidLocal) {
+				ResumeMusicStream(_music);
 			}
 
-			if (IsMouseButtonPressed(MouseButton::MOUSE_BUTTON_RIGHT)) {
-				placedNotes.erase(beats[i].timing_ms);
+			resume();
+		}
+		else {
+			if (isMusicValidLocal) {
+				PauseMusicStream(_music);
+			}
+
+			pause();
+		}
+		onUpdateTimeline();
+		break;
+	}
+	case GuiEventType::Restart: {
+		this->setTime(0);
+		if (!sections.size()) break;
+		if (isMusicValidLocal) {
+			ResumeMusicStream(_music);
+			SeekMusicStream(_music, (float)offset / 1000.0f);
+		}
+		resume();
+		flushPlayedBeats();
+		onUpdateTimeline();
+		break;
+	}
+
+	case GuiEventType::Load:
+		break;
+
+	case GuiEventType::Save:
+		break;
+
+	case GuiEventType::Skip: {
+		float frac = std::stof(e.payload);
+
+		int totalSkipLengthMs = sections[sections.size() - 1].end_ms;
+
+		int ms = int(std::ceil(((float)totalSkipLengthMs / 100.0f) * frac));
+		
+		size_t id = BeatFactory::findClosestBeatIndex(calculated_beats, ms);
+
+		int closestTiming = calculated_beats[id].timing_ms;
+
+		setTime(closestTiming);
+		if (isMusicValidLocal) {
+			SeekMusicStream(_music, (closestTiming + offset) / 1000.0f);
+		}
+
+		flushPlayedBeats();
+		onUpdateTimeline();
+		break;
+	}
+
+	case GuiEventType::Offset: {
+		int v = std::stoi(e.payload);
+		this->offset = v;
+
+		onUpdateTimeline();
+
+		break;
+	}
+
+	case GuiEventType::Bpm: {
+		if (currentState.sectionId == -1 || !sections.size()) break;
+
+		sections[currentState.sectionId].bpm = std::stof(e.payload);
+
+		onUpdateTimeline();
+
+		break;
+	}
+
+	case GuiEventType::Signature: {
+		if (currentState.sectionId == -1 || !sections.size()) break;
+		//?
+		sections[currentState.sectionId].signature.denominator = 4;
+		sections[currentState.sectionId].signature.numerator = std::stoi(e.payload);
+
+		onUpdateTimeline();
+
+		break;
+	}
+
+	case GuiEventType::Spacing: {
+		float fr = std::stof(e.payload);
+		this->_spacingMul = fr;
+		break;
+	}
+
+	case GuiEventType::InsertSection: {
+		int now = getTimePassed();
+		float end = songLengthMs > 0 ? songLengthMs : DEFAULT_SECTION_LENGTH;
+
+		if (currentState.sectionId != -1) {
+			sections[currentState.sectionId].end_ms = now;
+		}
+		
+		//set default to current
+		Section newSec;
+		newSec.signature = { 4,4,"4/4" };
+		newSec.bpm = DEFAULT_BPM;
+		newSec.start_ms = now;
+		newSec.end_ms = end;
+
+		sections.push_back(newSec);
+		
+		std::sort(sections.begin(), sections.end(), [](const auto& lhs, const auto& rhs)
+			{
+				return lhs.start_ms < rhs.start_ms;
+			});
+
+		onUpdateTimeline();
+		break;
+	}
+
+	case GuiEventType::RemoveSection: {
+		if (currentState.sectionId == 0) return;
+
+		if (sections.empty() || currentState.sectionId < 0 ||
+			currentState.sectionId >= (int)sections.size()) break;
+
+		sections.erase(sections.begin() + currentState.sectionId);
+
+		for (int i = 0; i + 1 < (int)sections.size(); ++i) {
+			sections[i].end_ms = sections[i + 1].start_ms;
+		}
+
+		if (sections.size() == 1) {
+			sections[0].end_ms = songLengthMs > 0 ? songLengthMs : DEFAULT_SECTION_LENGTH;
+		}
+		//?
+		sections[sections.size() - 1].end_ms = songLengthMs > 0 ? songLengthMs : DEFAULT_SECTION_LENGTH;
+
+		onUpdateTimeline();
+		break;
+		
+	}
+
+	case GuiEventType::PlaybackSpeed: {
+		float sp = std::stof(e.payload);
+		this->setMul(sp);
+		if (isMusicValidLocal) {
+			SetMusicPitch(_music, sp);
+		}
+
+
+		break;
+	}
+
+	case GuiEventType::InsertNote: {
+		int now = getTimePassed();
+		std::find(placed_notes.begin(), placed_notes.end(), [&]() {});
+
+		placed_notes.push_back({ now, 0 });
+
+		break;
+	}
+
+	case GuiEventType::RemoveNote: {
+		break;
+	}
+
+	case GuiEventType::MP3: {
+		const char* patterns[] = { "*.mp3" };
+		char const* result = tinyfd_openFileDialog(
+			"title",
+			"",
+			1,
+			patterns,
+			nullptr,
+			0
+		);
+		if (result) {
+			_music = LoadMusicStream(result);
+			if (IsMusicValid(_music)) {
+				isMusicValidLocal = true;
+
+
+				setTime(0);
+				PlayMusicStream(_music);
+				PauseMusicStream(_music);
+
+				songLengthMs = GetMusicTimeLength(_music) * 1000;
+
+				sections[sections.size() - 1].end_ms = songLengthMs; //?
+
+				onUpdateTimeline();
 			}
 
 			break;
-		}*/
+		}
+
 	}
 
-	for (size_t i = 0; i < xs.size(); ++i) {
-		int  tickH = pregen_beats[i].index == 1 ? 50 : 30;
-		Color col = BLACK;
 
-		float x = xs[i];
-		DrawLine(int(x), centerY - tickH, int(x), centerY + tickH, col);
-
-		//const char* txt = TextFormat("%d", beats[i].index + 1);
-		/*int txtW = MeasureText(txt, 14);
-		DrawText(
-			txt,
-			int(x - txtW / 2),
-			centerY + 50 + 2,
-			14,
-			BLACK
-		);*/
 	}
-
-	EndScissorMode();
 
 }
 
-void Editor::_draw_playback_button() {
-	int ret = GuiButton({ 5, 5, 75, 25 }, isPaused() ? "Resume" : "Pause");
-	if (ret) isPaused() ? resume() : pause();
-}

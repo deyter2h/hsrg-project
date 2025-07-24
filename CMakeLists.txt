@@ -45,7 +45,7 @@ endif()
 file(GLOB_RECURSE SRC src/*.cpp)
 file(GLOB_RECURSE HDR src/*.h)
 
-add_executable(HSRG ${SRC} ${HDR} "src/Timable.h" "src/Timable.cpp" "src/Structs.h" "src/Editor.h" "src/Editor.cpp" "src/rayugui_impl.cpp" "src/BeatFactory.h")
+add_executable(HSRG ${SRC} ${HDR} "src/Timable.h" "src/Timable.cpp" "src/Structs.h" "src/Editor.h" "src/Editor.cpp" "src/rayugui_impl.cpp" "src/BeatFactory.h" "src/Editor-Gui.h" "src/tinyfiledialog.h" "src/tinyfiledialog.c" "src/SectionSelection.h" "src/Constants.h")
 target_include_directories(HSRG PRIVATE
   src
   ${_rayInc}

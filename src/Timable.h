@@ -3,17 +3,6 @@
 #include <chrono>
 #include "Structs.h"
 
-//const std::vector<SignatureInfo> common_signatures ={
-//	{ 1, 1, "1/1" },
-//	{ 1, 32, "1/32" },
-//	{ 1, 16, "1/16" },
-//	{ 1, 8, "1/8" },
-//	{ 1, 4, "1/4" },
-//	{ 1, 2, "1/2" },
-//	{ 1, 6, "1/6" },
-//	{ 1, 3, "1/3" },
-//};
-
 class Timeable {
 public:
 	Timeable();
@@ -22,19 +11,14 @@ public:
 
 	int getTimePassed() const;
 
+	void setMul(float m);
 	void resume();
 	void pause();
 	void restart();
 	bool isPaused() const;
-	
-	//void setBpm(unsigned int bpm);
-	//void setSignature(SignatureInfo sign);
+
 	void incrementTime(int ms);
-
-	//double getBeatTime() const;
-
-	//int getSignatureDivision() const;
-	//std::vector<Beat> calculateBeats(unsigned int segments) const;
+	void setTime(int ms);
 
 protected:
 	std::chrono::steady_clock::time_point startTime;
@@ -42,9 +26,7 @@ protected:
 	int time_added;
 	bool _isPaused;
 
-	//int bpm = 60;
-	//int offset = 0;
-	//SignatureInfo signature;
+	float _speedMul = 1.0f;
 
 	int generateTimePassed();
 	int timePassedMs = 0;

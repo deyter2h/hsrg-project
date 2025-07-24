@@ -5,6 +5,7 @@
 struct SignatureInfo {
 	int numerator;
 	int denominator;
+	std::string str;
 };
 
 struct Beat {
@@ -12,11 +13,20 @@ struct Beat {
 	short unsigned int index;
 };
 
+struct PlayableBeat : public Beat {
+	bool isPlayed = false;
+};
+
 struct Section {
 	SignatureInfo signature;
-	int bpm;
-	int start_ms;
-	int end_ms;
+	float bpm;
+	float start_ms;
+	float end_ms;
+};
+
+struct CurrentState {
+	int sectionId;
+	int beatId;
 };
 
 struct Note {
