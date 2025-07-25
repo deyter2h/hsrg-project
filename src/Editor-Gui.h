@@ -71,7 +71,7 @@ public:
 
         // Sliders & their last‐frame values
         static float timelineVal = 0.f, lastTimelineVal = 0.f;
-        static float spacingVal = 0.f, lastSpacingVal = 0.f;
+        static float spacingVal = 0.2f, lastSpacingVal = 0.f;
 
         // Spinners & their last‐frame values
         static int offsetVal = 0, lastOffsetVal = 0;
@@ -79,7 +79,7 @@ public:
 
         // Dropdowns & last‐frame values
         static bool  speedOpen = false;
-        static int   speedSel = 0, lastSpeedSel = 0;
+        static int   speedSel = 2, lastSpeedSel = 0;
         static bool  jumpOpen = false;
         static int   jumpSel = 0, lastJumpSel = 0;
         static bool  sigOpen = false;
@@ -152,7 +152,7 @@ public:
 
         // Spacing slider
         lastSpacingVal = spacingVal;
-        GuiSlider({ 544,256,112,16 }, nullptr, nullptr, &spacingVal, 0.1f, 5.0f);
+        GuiSlider({ 544,256,112,16 }, nullptr, nullptr, &spacingVal, 0.05f, 1.0f);
         if (spacingVal != lastSpacingVal)
             events.push_back({ GuiEventType::Spacing, std::to_string(spacingVal) });
 
@@ -205,6 +205,7 @@ public:
     void draw_timeline(int elapsed,
         const std::vector<PlayableBeat>& beats,
         const std::vector<Section>& sections,
+        const std::vector<Note>& notes,
         float spacing,
         int offset)
     {
@@ -297,6 +298,18 @@ public:
                 centerY + TIMELINE_AREA.height / 4 + 2,
                 14,
                 BLACK);
+        }
+
+        for (auto& n : notes)
+        {
+            float bx = centerX + (n.timing_ms - elapsed)
+                * PIXEL_PER_MS * spacing;
+
+            if (bx < leftX)       continue;
+            if (bx > rightX)      break;
+
+            DrawLineEx({ float(bx) - 30, (float)centerY }, { float(bx + 30), (float)centerY }, 2, BLACK);
+            
         }
 
         // 0) Draw blue playhead

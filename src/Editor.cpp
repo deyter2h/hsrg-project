@@ -27,7 +27,10 @@ DEFAULT_SECTION_LENGTH });
 
 void Editor::flushPlayedBeats() {
 	for (auto& i : calculated_beats) {
-		if (i.isPlayed && i.timing_ms + offset > getTimePassed()) i.isPlayed = false;
+		if (i.isPlayed && i.timing_ms > getTimePassed()) i.isPlayed = false;
+	}
+	for (auto& i : placed_notes) {
+		if (i.hit_offset_ms.has_value() && i.timing_ms > getTimePassed()) i.hit_offset_ms.reset();
 	}
 }
 
@@ -68,7 +71,7 @@ void Editor::render() {
 	for (auto& e : events) {
 		handleGuiEvent(e);
 	}
-	gui.draw_timeline(getTimePassed(), calculated_beats, sections, _spacingMul, offset);
+	gui.draw_timeline(getTimePassed(), calculated_beats, sections, placed_notes, _spacingMul, offset);
 	EndDrawing();
 }
 
@@ -91,6 +94,14 @@ void Editor::update() {
 		if (getTimePassed() >= sections[i].start_ms && getTimePassed() <= sections[i].end_ms) {
 			sectionId = i;
 			break;
+		}
+	}
+
+	for (auto& i : placed_notes) {
+		int now = getTimePassed();
+		if (i.timing_ms <= now && !i.hit_offset_ms.has_value()) {
+			PlaySound(_sound);
+			i.hit_offset_ms = now;
 		}
 	}
 
@@ -253,20 +264,34 @@ void Editor::handleGuiEvent(const GuiEvent& e) {
 			SetMusicPitch(_music, sp);
 		}
 
-
 		break;
 	}
 
 	case GuiEventType::InsertNote: {
 		int now = getTimePassed();
-		std::find(placed_notes.begin(), placed_notes.end(), [&]() {});
-
-		placed_notes.push_back({ now, 0 });
+		bool exists = false;
+		for (auto& i : placed_notes) {
+			if (i.timing_ms == now) {
+				exists = true;
+				break;
+			}
+		}
+		if (!exists) {
+			placed_notes.push_back({ now, 0 });
+		}
+		
 
 		break;
 	}
 
 	case GuiEventType::RemoveNote: {
+		int now = getTimePassed();
+		for (int i = placed_notes.size() - 1; i >= 0; --i) {
+			if (placed_notes[i].timing_ms == now) {
+				placed_notes.erase(placed_notes.begin() + i);
+				break;
+			}
+		}
 		break;
 	}
 
