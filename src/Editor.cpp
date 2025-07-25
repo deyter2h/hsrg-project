@@ -12,16 +12,16 @@ Editor::Editor() {
 	
 
 	_sound = LoadSound("C:/music/sound.wav");
-	setTime(0);
+	
 
-	if (!this->sections.size()) {
-		sections.push_back({ { 4, 4 },
-DEFAULT_BPM,
-0,
-DEFAULT_SECTION_LENGTH });
-	}
+	sections.push_back({ { 4, 4 },
+		DEFAULT_BPM,
+		0,
+		DEFAULT_SECTION_LENGTH });
+	this->songLengthMs = DEFAULT_SECTION_LENGTH;
 
 	this->onUpdateTimeline();
+	setTime(0);
 
 }
 
@@ -30,7 +30,7 @@ void Editor::flushPlayedBeats() {
 		if (i.isPlayed && i.timing_ms > getTimePassed()) i.isPlayed = false;
 	}
 	for (auto& i : placed_notes) {
-		if (i.hit_offset_ms.has_value() && i.timing_ms > getTimePassed()) i.hit_offset_ms.reset();
+		if (i.hit_offset_ms.has_value() && i.timing_ms >= getTimePassed()) i.hit_offset_ms.reset();
 	}
 }
 
@@ -75,37 +75,43 @@ void Editor::render() {
 	EndDrawing();
 }
 
-void Editor::update() {
-	this->tick();
-	this->listen();
-	this->render();
-
-	if (!isPaused()) {
-		if (isMusicValidLocal) {
-			UpdateMusicStream(_music);
-		}
+void Editor::updateCurrentInfo() {
+	int now = getTimePassed();
+	if (!isPaused() && isMusicValidLocal) {
+		UpdateMusicStream(_music);
 	}
-	//prob too much for cycling
-	int beatId = BeatFactory::findClosestBeatIndex(calculated_beats, getTimePassed());
 
-	int sectionId = -1;
+	int currentBeatId = BeatFactory::findClosestBeatIndex(calculated_beats, now);
+	int currentSectionId = 0; //fix usage of -1 then
 
 	for (int i = 0; i < sections.size(); i++) {
-		if (getTimePassed() >= sections[i].start_ms && getTimePassed() <= sections[i].end_ms) {
-			sectionId = i;
+		if (now >= sections[i].start_ms && now <= sections[i].end_ms) {
+			currentSectionId = i;
 			break;
 		}
 	}
 
 	for (auto& i : placed_notes) {
-		int now = getTimePassed();
 		if (i.timing_ms <= now && !i.hit_offset_ms.has_value()) {
 			PlaySound(_sound);
 			i.hit_offset_ms = now;
 		}
 	}
 
-	this->currentState = { sectionId, beatId };
+	this->currentState = { currentSectionId, currentBeatId };
+	
+	//Redo
+	float v = ((float)songLengthMs / 100.0f);
+	float fr = (float)getTimePassed() / v;
+	gui.timelineVal = fr;
+}
+
+void Editor::update() {
+	
+	this->tick();
+	this->listen();
+	this->updateCurrentInfo();
+	this->render();
 }
 
 void Editor::handleGuiEvent(const GuiEvent& e) {
@@ -169,6 +175,7 @@ void Editor::handleGuiEvent(const GuiEvent& e) {
 
 		flushPlayedBeats();
 		onUpdateTimeline();
+
 		break;
 	}
 
@@ -310,14 +317,19 @@ void Editor::handleGuiEvent(const GuiEvent& e) {
 			if (IsMusicValid(_music)) {
 				isMusicValidLocal = true;
 
-
 				setTime(0);
 				PlayMusicStream(_music);
 				PauseMusicStream(_music);
+				SetMusicVolume(_music, 2.0f);
 
 				songLengthMs = GetMusicTimeLength(_music) * 1000;
 
-				sections[sections.size() - 1].end_ms = songLengthMs; //?
+				sections.clear();
+
+				sections.push_back({ { 4, 4 },
+				DEFAULT_BPM,
+				0,
+				(float)songLengthMs });
 
 				onUpdateTimeline();
 			}

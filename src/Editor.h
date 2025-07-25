@@ -24,6 +24,7 @@ private:
 	void render();
 	void listen();
 	void onUpdateTimeline();
+	void updateCurrentInfo();
 
 	EditorGui gui;
 	void handleGuiEvent(const GuiEvent& e);

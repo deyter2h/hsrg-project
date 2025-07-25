@@ -48,6 +48,7 @@ class EditorGui {
 private:
 
 public:
+    float timelineVal = 0.0f; //(((
 	EditorGui() = default;
 
     std::vector<GuiEvent> draw_debug()
@@ -70,7 +71,6 @@ public:
         static bool btnRemoveNote = false;
 
         // Sliders & their last‐frame values
-        static float timelineVal = 0.f, lastTimelineVal = 0.f;
         static float spacingVal = 0.2f, lastSpacingVal = 0.f;
 
         // Spinners & their last‐frame values
@@ -107,10 +107,9 @@ public:
         if (btnPlay)    events.push_back({ GuiEventType::Play });
 
         // Timeline scrubber
-        lastTimelineVal = timelineVal;
-        GuiSlider({ 80,200,784,16 }, nullptr, nullptr, &timelineVal, 0.f, 100.f);
-        if (timelineVal != lastTimelineVal)
+        if (GuiSlider({ 80,200,784,16 }, nullptr, nullptr, &timelineVal, 0.0f, 100.0f)) {
             events.push_back({ GuiEventType::Skip, std::to_string(timelineVal) });
+        }
 
         // Left panels
         GuiPanel({ 32,224,200,264 }, nullptr);
