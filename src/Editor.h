@@ -26,6 +26,14 @@ private:
 	void onUpdateTimeline();
 	void updateCurrentInfo();
 
+	void onNewSection(Section s);
+	void onNewNote(Note n);
+
+	void adjustToNearestBeat();
+	void flushSections();
+
+	void updateExternalGuiValues();
+
 	EditorGui gui;
 	void handleGuiEvent(const GuiEvent& e);
 

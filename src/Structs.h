@@ -35,3 +35,9 @@ struct Note {
 	std::optional<int> hit_offset_ms;
 	std::optional<int> release_offset_ms;
 };
+
+struct Map {
+	std::vector<Section> sections;
+	std::vector<Note> notes;
+	int offset;
+};

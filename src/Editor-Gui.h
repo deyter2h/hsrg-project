@@ -33,7 +33,8 @@ enum class GuiEventType {
     Bpm,
     Signature,
     Spacing,
-    InsertNote,
+    InsertNoteStart,
+    InsertNoteEnd,
     RemoveNote,
     // …add more as you grow…
 };
@@ -49,6 +50,9 @@ private:
 
 public:
     float timelineVal = 0.0f; //(((
+    int bpmVal = DEFAULT_BPM;
+    int offsetVal = 0;
+    int selectedSignature = 0;
 	EditorGui() = default;
 
     std::vector<GuiEvent> draw_debug()
@@ -74,8 +78,8 @@ public:
         static float spacingVal = 0.2f, lastSpacingVal = 0.f;
 
         // Spinners & their last‐frame values
-        static int offsetVal = 0, lastOffsetVal = 0;
-        static int bpmVal = DEFAULT_BPM, lastBpmVal = 0;
+        static int lastOffsetVal = 0;
+        static int lastBpmVal = 0;
 
         // Dropdowns & last‐frame values
         static bool  speedOpen = false;
@@ -83,7 +87,7 @@ public:
         static bool  jumpOpen = false;
         static int   jumpSel = 0, lastJumpSel = 0;
         static bool  sigOpen = false;
-        static int   sigSel = 4, lastSigSel = 0;
+        static int lastSigSel = 0;
 
         // ──────────────────────────────────────────────────────────────────────────────────────
         // Draw controls
@@ -104,7 +108,7 @@ public:
         btnRestart = GuiButton({ 880, 72, 32, 32 }, "Rs.");
         if (btnRestart) events.push_back({ GuiEventType::Restart });
         btnPlay = GuiButton({ 880,112, 32, 32 }, "Pl.");
-        if (btnPlay)    events.push_back({ GuiEventType::Play });
+        if (btnPlay || IsKeyPressed(KEY_SPACE))    events.push_back({ GuiEventType::Play });
 
         // Timeline scrubber
         if (GuiSlider({ 80,200,784,16 }, nullptr, nullptr, &timelineVal, 0.0f, 100.0f)) {
@@ -173,8 +177,9 @@ public:
         }  
 
         static bool SigEdit = false;
-        if (GuiDropdownBox({ 328,280,112,16 }, SIGNATURES_STR.c_str(), &sigSel, SigEdit)) {
-            events.push_back({ GuiEventType::Signature, std::to_string(SIGNATURES_RAW[sigSel])});
+        
+        if (GuiDropdownBox({ 328,280,112,16 }, ALLOWED_SIGNATURES_STR.c_str(), &selectedSignature, SigEdit)) {
+            events.push_back({ GuiEventType::Signature, std::to_string(selectedSignature)});
             SigEdit = !SigEdit;
         }
 
@@ -182,14 +187,24 @@ public:
         GuiLabel({ 688,232,56,16 }, "Notes");
         GuiLabel({ 688,256, 56,16 }, "Place");
 
-        btnInsertNote =  GuiButton({ 760, 256 , 112, 16 }, "Default");
-        if (btnInsertNote) {
-            events.push_back({ GuiEventType::InsertNote });
+        static bool isNotePlaced = false;
+        btnInsertNote =  GuiButton({ 760, 256 , 112, 16 }, isNotePlaced ? "Note end" : "Note start");
+        if (btnInsertNote ) {      
+            if (isNotePlaced) {
+                events.push_back({ GuiEventType::InsertNoteEnd });
+                
+            }
+            if (!isNotePlaced) {
+                events.push_back({ GuiEventType::InsertNoteStart });
+            }
+            isNotePlaced = !isNotePlaced;
+            
+            
         }
 
         GuiLabel({ 688, 280 ,112, 16 }, "Remove");
-        btnRemoveNote = GuiButton({ 760, 280 , 112, 16 }, "Default");
-        if (btnRemoveNote) {
+        btnRemoveNote = GuiButton({ 760, 280 , 112, 16 }, "Right Mouse");
+        if (btnRemoveNote ) {  //|| IsMouseButtonPressed(MOUSE_BUTTON_LEFT)
             events.push_back({ GuiEventType::RemoveNote });
         }
 
@@ -303,11 +318,15 @@ public:
         {
             float bx = centerX + (n.timing_ms - elapsed)
                 * PIXEL_PER_MS * spacing;
+            float bend = centerX + ((n.timing_ms + n.length_ms) - elapsed)
+                * PIXEL_PER_MS * spacing;
 
             if (bx < leftX)       continue;
             if (bx > rightX)      break;
+            if (bend < leftX)       continue;
+            if (bend > rightX)      bend = rightX;
 
-            DrawLineEx({ float(bx) - 30, (float)centerY }, { float(bx + 30), (float)centerY }, 2, BLACK);
+            DrawLineEx({ float(bx) - 15*spacing, (float)centerY }, { float(bend + 15*spacing), (float)centerY }, 2, BLACK);
             
         }
 
