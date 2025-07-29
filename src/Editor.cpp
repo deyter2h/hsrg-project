@@ -8,20 +8,24 @@
 #include <functional>
 #include "Timable.h"
 #include "Editor.h"
+#include "Structs.h"
 #include "BeatFactory.h"
-#include "MapStore.h"
-#include "tinyfiledialog.h"
+#include "MapContainer.h"
+
 using namespace std::chrono;
 
 Editor::Editor() {
 	_sound = LoadSound("C:/music/sound.wav");
 
 	this->flushSections();
+
+	std::string titleStr = "Editing - " + mapContainer.getWorkingPath();
+	SetWindowTitle(titleStr.c_str());
 	
 	//for first frame init
 	this->update();
 	updateCurrentInfo();
-	this->onUpdateTimeline();
+	this->recalculateBeats();
 
 	setTime(0);
 
@@ -34,7 +38,6 @@ void Editor::flushSections() {
 		DEFAULT_BPM,
 		0,
 		DEFAULT_SECTION_LENGTH });
-	this->songLengthMs = DEFAULT_SECTION_LENGTH;
 }
 
 void Editor::flushPlayedBeats() {
@@ -46,26 +49,17 @@ void Editor::flushPlayedBeats() {
 	}
 }
 
-void Editor::onUpdateTimeline() {
+void Editor::recalculateBeats() {
 	auto beats = BeatFactory::GENERATE_FROM_SECTIONS(this->sections);
 	this->calculated_beats.clear();
 	this->calculated_beats.resize(beats.size() + 1);
 	for (int i = 0; i < beats.size(); i++) {
 		this->calculated_beats[i] = { beats[i].timing_ms, beats[i].index, false };
-	}
+	} 
 } 
 
 void Editor::listen() {
-	float wheel = GetMouseWheelMove();
-	if (wheel != 0.0f && sections.size()) {
 
-		int id = std::clamp<int>(currentState.beatId + (int)wheel,0,(int)calculated_beats.size() - 1);
-		int timing = calculated_beats[id].timing_ms;
-
-		this->setTime(timing);
-		adjustToNearestBeat();
-		flushPlayedBeats();
-	}
 }
 
 void Editor::render() {
@@ -112,7 +106,6 @@ void Editor::update() {
 	
 	this->tick();
 	this->listen();
-
 	if (!isPaused()) this->updateCurrentInfo(); //
 	
 	this->render();
@@ -121,7 +114,7 @@ void Editor::update() {
 void Editor::adjustToNearestBeat() {
 	size_t id = BeatFactory::findClosestBeatIndex(calculated_beats, getTimePassed());
 	int closestTiming = calculated_beats[id].timing_ms;
-
+	
 	setTime(closestTiming);
 	updateCurrentInfo();
 
@@ -136,12 +129,12 @@ void Editor::updateExternalGuiValues() {
 	auto &sig = sections[currentState.sectionId].signature;
 	this->gui.selectedSignature = findSignatureIndex(sig.numerator, sig.denominator);
 
-	float v = ((float)songLengthMs / 100.0f);
+	float v = ((float)getTotalLengthMs() / 100.0f);
 	float fr = (float)getTimePassed() / v;
 	gui.timelineVal = fr;
 }
 
-void Editor::onNewNote(Note n) {
+void Editor::spawnNote(Note n) {
 	int now = getTimePassed();
 	if (std::none_of(placed_notes.begin(), placed_notes.end(),
 		[&](auto& x) {//? display error otherwise idk
@@ -149,11 +142,15 @@ void Editor::onNewNote(Note n) {
 		}))
 		 {
 		placed_notes.push_back({ n });
+		editingNoteIndex = placed_notes.size() - 1;
 		}
+
+
 }
 
-void Editor::onNewSection(Section s) {
-	sections[currentState.sectionId].end_ms = s.start_ms;
+void Editor::spawnSection(Section s) {
+	if (sections.size()) sections[currentState.sectionId].end_ms = s.start_ms;
+	
 	sections.push_back(s);
 
 	std::sort(sections.begin(), sections.end(), [](const auto& lhs, const auto& rhs)
@@ -162,256 +159,275 @@ void Editor::onNewSection(Section s) {
 		});
 	
 }
-void Editor::handleGuiEvent(const GuiEvent& e) {
 
-	static int noteStartMs = 0;
+int Editor::getTotalLengthMs() {
+	return sections[currentState.sectionId].end_ms; //Assume they are sorted and one always presents
+}
+
+void Editor::handleGuiEvent(const GuiEvent& e) {
+	if (!sections.size()) return; 
 
 	switch (e.type) {
 	case GuiEventType::Play: {
-		if (!sections.size()) break;
-
-		this->setTime(calculated_beats[currentState.beatId].timing_ms);
-
-		if (isPaused()) {
-			if (isMusicValidLocal) {
-				ResumeMusicStream(_music);
-			}
-
-			resume();
-		}
-		else {
-			if (isMusicValidLocal) {
-				PauseMusicStream(_music);
-			}
-
-			pause();
-		}
-		updateCurrentInfo();
+		actionPlay();
 		break;
 	}
 	case GuiEventType::Restart: {
-		this->setTime(0);
-		if (!sections.size()) break;
-		if (isMusicValidLocal) {
-			ResumeMusicStream(_music);
-			SeekMusicStream(_music, (float)offset / 1000.0f);
-		}
-		resume();
-		flushPlayedBeats();
-
-		updateCurrentInfo();
+		actionRestart();
 		break;
 	}
 
 	case GuiEventType::Load: {
-
-		const char* patterns[] = { "*.txt" };
-		char const* result = tinyfd_openFileDialog(
-			"Select map",
-			"",
-			1,
-			patterns,
-			nullptr,
-			0
-		);
-		if (result) {
-			TextMapStore s(result);
-			auto map = s.load();
-			if (!map.has_value()) break;
-			auto _sections = map.value().sections;
-			if (map.value().sections.size() < 1) break;
-			auto _notes = map.value().notes;
-			auto _offset = map.value().offset;
-
-			this->offset = _offset;
-
-			flushSections();
-
-			for (auto& s : _sections) {
-				this->onNewSection(s);
-			}
-
-			this->placed_notes.clear();
-			for (auto& n : _notes) {
-				this->onNewNote(n);
-			}
-
-			this->updateExternalGuiValues();
-
-			break;
-		}
-	
+		actionLoadData();
 		break;
 	}
 		
-
 	case GuiEventType::Save: {
-		std::sort(placed_notes.begin(), placed_notes.end(), [](const auto& lhs, const auto& rhs)
-			{
-				return lhs.timing_ms < rhs.timing_ms;
-			});
-
-		std::string path = std::string(GetApplicationDirectory()) + "/map.txt";
-		TextMapStore s(path);
-		s.save({ sections, placed_notes, offset });
+		actionSaveData();
 		break;
 	}
 		
-
 	case GuiEventType::Skip: {
-		float frac = std::stof(e.payload);
-		int totalSkipLengthMs = sections[sections.size() - 1].end_ms;
-		int ms = int(std::ceil(((float)totalSkipLengthMs / 100.0f) * frac));
+		actionSkipTime(std::stof(e.payload));
+		break;
+	}
 
-		setTime(ms);
-		adjustToNearestBeat();
-		flushPlayedBeats();
-
+	case GuiEventType::SkipStep: {
+		actionSkipStep(std::stof(e.payload));
 		break;
 	}
 
 	case GuiEventType::Offset: {
-		int v = std::stoi(e.payload);
-		this->offset = v;
-
+		actionChangeOffset(std::stof(e.payload));
 		break;
 	}
 
 	case GuiEventType::Bpm: {
-		if (currentState.sectionId == -1 || !sections.size()) break;
-
-		sections[currentState.sectionId].bpm = std::stof(e.payload);
-
-		adjustToNearestBeat();
-		onUpdateTimeline();
+		actionChangeSectionBpm(std::stof(e.payload));
 		break;
 	}
 
 	case GuiEventType::Signature: {
-		if (currentState.sectionId == -1 || !sections.size()) break;
-		//?
-		SignatureInfo selectedSignature = ALLOWED_SIGNATURES[std::stoi(e.payload)];
-		sections[currentState.sectionId].signature = selectedSignature;
-
-		adjustToNearestBeat();
-		onUpdateTimeline();
-
+		actionChangeSectionSignature(std::stoi(e.payload));
 		break;
 	}
 
 	case GuiEventType::Spacing: {
-		float fr = std::stof(e.payload);
-		this->_spacingMul = fr;
+		actionChangeSpacing(std::stof(e.payload));
 		break;
 	}
 
 	case GuiEventType::InsertSection: {
-		Section newSec;
-		newSec.signature = ALLOWED_SIGNATURES[gui.selectedSignature]; //might break
-		newSec.bpm = gui.bpmVal;;
-		newSec.start_ms = getTimePassed();
-		newSec.end_ms = (currentState.sectionId + 1) >= sections.size() ? sections[currentState.sectionId].end_ms : sections[currentState.sectionId + 1].end_ms;
-		onNewSection(newSec);
-		updateCurrentInfo();
-		onUpdateTimeline();
+		actionInsertSection();
 		break;
 	}
 
 	case GuiEventType::RemoveSection: {
-		if (currentState.sectionId == 0) return;
-
-		if (sections.empty() || currentState.sectionId < 0 ||
-			currentState.sectionId >= (int)sections.size()) break;
-
-		sections.erase(sections.begin() + currentState.sectionId);
-
-		for (int i = 0; i + 1 < (int)sections.size(); ++i) {
-			sections[i].end_ms = sections[i + 1].start_ms;
-		}
-
-		if (sections.size() == 1) {
-			sections[0].end_ms = songLengthMs > 0 ? songLengthMs : DEFAULT_SECTION_LENGTH;
-		}
-		//?
-		sections[sections.size() - 1].end_ms = songLengthMs > 0 ? songLengthMs : DEFAULT_SECTION_LENGTH;
-
-		updateCurrentInfo();
-
-		onUpdateTimeline();
+		actionRemoveSection();
 		break;
-		
 	}
 
 	case GuiEventType::PlaybackSpeed: {
-		float sp = std::stof(e.payload);
-		this->setMul(sp);
-		if (isMusicValidLocal) {
-			SetMusicPitch(_music, sp);
-		}
-
+		actionChangePlayback(std::stof(e.payload));
 		break;
 	}
 
 	case GuiEventType::InsertNoteStart: {
-		noteStartMs = getTimePassed();
-
+		actionPlaceNote();
 		break;
 	}
 
 	case GuiEventType::InsertNoteEnd: {
-		int now = getTimePassed();
-		e.payload;
-		this->onNewNote({ noteStartMs, now - noteStartMs });
-
-		noteStartMs = 0; //?reduntant
-
+		actionEditNote();
 		break;
 	}
 
 	case GuiEventType::RemoveNote: {
-		int now = getTimePassed();
-		for (int i = placed_notes.size() - 1; i >= 0; --i) {
-			if (placed_notes[i].timing_ms == now) {
-				placed_notes.erase(placed_notes.begin() + i);
-				break;
-			}
-		}
+		actionRemoveNote();
 		break;
 	}
 
 	case GuiEventType::MP3: {
-		const char* patterns[] = { "*.mp3" };
-		char const* result = tinyfd_openFileDialog(
-			"title",
-			"",
-			1,
-			patterns,
-			nullptr,
-			0
-		);
-		if (result) {
-			_music = LoadMusicStream(result);
-			if (IsMusicValid(_music)) {
-				isMusicValidLocal = true;
-
-				setTime(0);
-				PlayMusicStream(_music);
-				PauseMusicStream(_music);
-				SetMusicVolume(_music, 2.0f);
-
-				this->flushSections();
-
-				updateCurrentInfo();
-				onUpdateTimeline();
-			}
-
-			break;
-		}
-
+		actionLoadAudio();
+		break;
+	}
 	}
 
+	recalculateBeats();
+	adjustToNearestBeat();
 
+}
+
+void Editor::actionPlay() {
+	isPaused() ? actionResume() : actionPause();
+}
+
+void Editor::actionResume() {
+	resume();
+	if (isMusicValidLocal) ResumeMusicStream(_music);
+}
+
+void Editor::actionPause() {
+	pause();
+	if (isMusicValidLocal) PauseMusicStream(_music);
+}
+
+void Editor::actionRestart() {
+	setTime(0);
+	if (isMusicValidLocal) {
+		ResumeMusicStream(_music);
+		SeekMusicStream(_music, (float)offset / 1000.0f);
+	}
+	actionResume();
+}
+
+void Editor::actionLoadAudio() {
+	const char* patterns[] = { "*.mp3" };
+	char const* result = tinyfd_openFileDialog(
+		"title",
+		"",
+		1,
+		patterns,
+		nullptr,
+		0
+	);
+	if (!result) return; // Error
+	_music = LoadMusicStream(result);
+	if (!IsMusicValid(_music)) return; //Error
+	isMusicValidLocal = true;
+
+	mapContainer.modifyMap(std::string(result), { sections, placed_notes, offset });
+
+	PlayMusicStream(_music);
+	PauseMusicStream(_music);
+	SetMusicVolume(_music, 2.0f);
+	actionPause();
+}
+
+void Editor::actionLoadData() {
+	char const* result = tinyfd_selectFolderDialog("Select folder", "");
+	if (!result) return;
+
+	auto map = mapContainer.loadExisting(std::string(result));
+
+	std::string titleStr = "Editing - " + mapContainer.getWorkingPath();
+	SetWindowTitle(titleStr.c_str());
+
+	this->offset = map.data.offset;
+
+	_music = map.music;
+
+	PlayMusicStream(_music);
+	PauseMusicStream(_music);
+	SetMusicVolume(_music, 2.0f);
+	actionPause();
+
+	flushSections();
+	sections.clear();
+
+	for (auto& s : map.data.sections) this->spawnSection(s);
+	for (auto& n : map.data.notes) this->spawnNote(n);
+
+	////temp
+	isMusicValidLocal = true;
+}
+
+void Editor::actionSaveData() {
+	std::sort(placed_notes.begin(), placed_notes.end(), [](const auto& lhs, const auto& rhs) { return lhs.timing_ms < rhs.timing_ms; });
+
+	mapContainer.modifyMap(mapContainer.getAudioPath(), {sections, placed_notes, offset});
+}
+
+void Editor::actionSkipTime(float percent) {
+	int totalSkipLengthMs = sections[sections.size() - 1].end_ms;
+	int ms = int(std::ceil(((float)totalSkipLengthMs / 100.0f) * percent));
+
+	setTime(ms);
+
+	flushPlayedBeats();
+}
+
+void Editor::actionSkipStep(float delta) {
+	int id = std::clamp<int>(currentState.beatId + (int)delta, 0, (int)calculated_beats.size() - 1);
+	int timing = calculated_beats[id].timing_ms;
+
+	this->setTime(timing);
+
+	flushPlayedBeats();
+}
+
+void Editor::actionChangePlayback(float multiplier) {
+	this->setMul(multiplier);
+	if (isMusicValidLocal) SetMusicPitch(_music, multiplier);
+}
+
+void Editor::actionChangeOffset(int offset) {
+	this->offset = offset;
+	if (isMusicValidLocal) SeekMusicStream(_music, (float)offset / 1000.0f);
+}
+
+void Editor::actionInsertSection() {
+	Section newSec;
+	newSec.signature = ALLOWED_SIGNATURES[gui.selectedSignature];
+	newSec.bpm = gui.bpmVal;;
+	newSec.start_ms = getTimePassed();
+	newSec.end_ms = (currentState.sectionId + 1) >= sections.size() ? sections[currentState.sectionId].end_ms : sections[currentState.sectionId + 1].end_ms;
+	spawnSection(newSec);
+}
+
+void Editor::actionRemoveSection() {
+	if (currentState.sectionId == 0) return; // Error
+
+	if (sections.empty() || currentState.sectionId < 0 ||
+		currentState.sectionId >= (int)sections.size()) return; // Error
+
+	sections.erase(sections.begin() + currentState.sectionId);
+
+	for (int i = 0; i + 1 < (int)sections.size(); ++i) {
+		sections[i].end_ms = sections[i + 1].start_ms;
 	}
 
+	if (sections.size() == 1) {
+		sections[0].end_ms = getTotalLengthMs() > 0 ? getTotalLengthMs() : DEFAULT_SECTION_LENGTH;
+	}
+
+	sections[sections.size() - 1].end_ms = getTotalLengthMs() > 0 ? getTotalLengthMs() : DEFAULT_SECTION_LENGTH;
+}
+
+void Editor::actionJumpSection() {
+}
+
+void Editor::actionChangeSectionBpm(int bpm) {
+	sections[currentState.sectionId].bpm = bpm;
+}
+
+void Editor::actionChangeSectionSignature(size_t signatureId) {
+	sections[currentState.sectionId].signature = ALLOWED_SIGNATURES[signatureId];
+}
+
+void Editor::actionChangeSpacing(float multiplier) {
+	this->_spacingMul = multiplier;
+}
+
+void Editor::actionPlaceNote() {
+	spawnNote({ getTimePassed(), 0 });
+	editingNoteIndex = placed_notes.size() - 1;
+}
+
+void Editor::actionEditNote() {
+	if (editingNoteIndex >= placed_notes.size() || editingNoteIndex == -1) return; // Error
+	placed_notes[editingNoteIndex].length_ms = getTimePassed() - placed_notes[editingNoteIndex].timing_ms;
+	editingNoteIndex = -1;
+}
+
+void Editor::actionRemoveNote() {
+	int now = getTimePassed();
+	std::erase_if(placed_notes,
+		[now](auto const& note) { return note.timing_ms == now; });
+
+	if (editingNoteIndex >= placed_notes.size() || editingNoteIndex == -1) return;
+	placed_notes.erase(placed_notes.begin() + editingNoteIndex);
+
+	editingNoteIndex = -1;
 }
 

@@ -6,9 +6,8 @@
 #include "raylib.h"
 #include "raygui.h"
 
-#include "SectionSelection.h"
 #include "Constants.h"
-
+#include "Structs.h"
 //const Rectangle TIMELINE_AREA = { 50, 50, 600, 100 };
 
 static constexpr Rectangle TIMELINE_AREA = { 72, 64, 800, 128 };
@@ -17,33 +16,6 @@ static constexpr Rectangle SECTION_PANEL = { 248, 184, 200, 264 };
 static constexpr Rectangle VIEW_PANEL = { 464, 184, 200, 264 };
 
 const float PIXEL_PER_MS = 0.5f;
-
-enum class GuiEventType {
-    Play,
-    Restart,
-    MP3,
-    Load,
-    Save,
-    Skip,
-    PlaybackSpeed,
-    Offset,
-    InsertSection,
-    RemoveSection,
-    JumpSection,
-    Bpm,
-    Signature,
-    Spacing,
-    InsertNoteStart,
-    InsertNoteEnd,
-    RemoveNote,
-    // …add more as you grow…
-};
-
-struct GuiEvent {
-    GuiEventType type;
-    std::string payload;
-};
-
 
 class EditorGui {
 private:
@@ -83,15 +55,22 @@ public:
 
         // Dropdowns & last‐frame values
         static bool  speedOpen = false;
-        static int   speedSel = 2, lastSpeedSel = 0;
+        static int   speedSel = 3, lastSpeedSel = 3;
         static bool  jumpOpen = false;
         static int   jumpSel = 0, lastJumpSel = 0;
         static bool  sigOpen = false;
         static int lastSigSel = 0;
 
+        ///controls
+        float wheel = GetMouseWheelMove();
+        if (wheel != 0.0f) {
+            events.push_back({ GuiEventType::SkipStep, std::to_string(wheel) });
+        }
+
         // ──────────────────────────────────────────────────────────────────────────────────────
         // Draw controls
         // ──────────────────────────────────────────────────────────────────────────────────────
+
 
         GuiEnable();
 

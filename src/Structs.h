@@ -1,6 +1,8 @@
 #pragma once
 #include <string>
 #include <optional>
+#include <raylib.h>
+#include <vector>
 
 struct SignatureInfo {
 	int numerator;
@@ -36,8 +38,47 @@ struct Note {
 	std::optional<int> release_offset_ms;
 };
 
-struct Map {
+struct MapData {
 	std::vector<Section> sections;
 	std::vector<Note> notes;
 	int offset;
+};
+
+struct MapMetadata {
+    std::string name;
+    std::string author;
+};
+
+struct MapLoad {
+    MapData mapData;
+    Music music;
+    Image bg;
+    MapMetadata meta;
+};
+
+enum class GuiEventType {
+    Play,
+    Restart,
+    MP3,
+    Load,
+    Save,
+    Skip,
+    SkipStep,
+    PlaybackSpeed,
+    Offset,
+    InsertSection,
+    RemoveSection,
+    JumpSection,
+    Bpm,
+    Signature,
+    Spacing,
+    InsertNoteStart,
+    InsertNoteEnd,
+    RemoveNote,
+    // …add more as you grow…
+};
+
+struct GuiEvent {
+    GuiEventType type;
+    std::string payload;
 };
